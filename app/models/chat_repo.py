@@ -27,8 +27,8 @@ class ChatRepo:
 
         new_room = {
             "room_id": room_id,
-            "created": datetime.now(timezone.utc),
-            "updated": datetime.now(timezone.utc),
+            "created": datetime.now(timezone.utc).isoformat(),
+            "updated": datetime.now(timezone.utc).isoformat(),
             "room_type": 0,
             "room_name": room_name,
             "room_mates": room_mates,
@@ -43,8 +43,8 @@ class ChatRepo:
         message = {
             "message_id": message_id,
             "room_id": room_id,
-            "created": datetime.now(timezone.utc),
-            "updated": datetime.now(timezone.utc),
+            "created": datetime.now(timezone.utc).isoformat(),
+            "updated": datetime.now(timezone.utc).isoformat(),
             "sender_uuid": sender_uuid,
             "sender_name": sender_name,
             "message": message_text,
