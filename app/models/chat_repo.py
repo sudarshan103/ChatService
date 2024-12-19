@@ -7,6 +7,23 @@ from app.models.extensions import mongodb
 class ChatRepo:
 
     @staticmethod
+    def receive_create_message_command(data):
+        room_mates = data.get('room_mates', [])
+        sender_uuid = data.get('sender_uuid')
+        sender_name = data.get('sender_name')
+        message_text = data.get('message')
+        room_id = data.get('room_id')
+
+        # If no room_id is provided, create or retrieve room
+        if not room_id:
+            room_id = ChatRepo.create_room(room_mates)
+
+        # Create the message
+        message = ChatRepo.create_message(room_id, sender_uuid, sender_name, message_text)
+        del message["_id"]
+        return message
+
+    @staticmethod
     def create_room(room_mates):
         room_mate_uuids = sorted([mate['uuid'] for mate in room_mates])
 
