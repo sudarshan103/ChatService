@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Contacts</title>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Extract the authToken from the cookie
+            const getCookie = (name) => {
+                const value = `; ${document.cookie}`;
+                const parts = value.split(`; ${name}=`);
+                if (parts.length === 2) return parts.pop().split(';').shift();
+            };
+
+            const authToken = getCookie('authToken');
+            if (!authToken) {
+                window.location.href = 'http://127.0.0.1:5000';
+                return;
+            } else {
+               document.getElementById('heading').innerHTML = `Welcome, <strong>${getCookie('person')}</strong>`;
+            }
+
+            fetch('http://127.0.0.1:5000/user', {
+                headers: { 'Authorization': `Bearer ${authToken}` }
+            })
+            .then(response => {
+                if (response.status === 401) {
+                    document.cookie = 'authToken=;Max-Age=0;path=/;';
+                    window.location.href = 'http://127.0.0.1:5000';
+                    return;
+                }
+                return response.json();
+            })
+            .then(data => {
+                const contactsList = document.getElementById('contactsList');
+                data.forEach(contact => {
+                    const contactItem = document.createElement('div');
+                    contactItem.className = 'contact';
+                    const fullName = contact.last_name ? `${contact.first_name} ${contact.last_name}` : contact.first_name;
+                    contactItem.innerHTML = `<strong>${fullName}</strong>`;
+                    contactItem.addEventListener('click', () => {
+                        window.location.href = `http://127.0.0.1:5001/chat?uuid=${contact.uuid}&name=${fullName}`;
+                    });
+                    contactsList.appendChild(contactItem);
+                });
+            })
+            .catch(error => console.error('Error:', error));
+        });
+    </script>
+</head>
+<body>
+    <div id="heading"></div>
+    <h1>Colleagues</h1>
+    <div id="contactsList"></div>
+</body>
+</html>

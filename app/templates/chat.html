@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Chat</title>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            const uuid = params.get('uuid');
+            const authToken = localStorage.getItem('authToken');
+            if (!uuid || !authToken) {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            fetch(`https://example.com/api/chat/${uuid}`, {
+                headers: { 'Authorization': `Bearer ${authToken}` }
+            })
+            .then(response => {
+                if (response.status === 401) {
+                    localStorage.removeItem('authToken');
+                    window.location.href = 'login.html';
+                    return;
+                }
+                return response.json();
+            })
+            .then(data => {
+                const chatWindow = document.getElementById('chatWindow');
+                data.messages.forEach(message => {
+                    const messageItem = document.createElement('div');
+                    messageItem.className = 'message';
+                    messageItem.innerText = `${message.sender}: ${message.content}`;
+                    chatWindow.appendChild(messageItem);
+                });
+            })
+            .catch(error => console.error('Error:', error));
+        });
+    </script>
+</head>
+<body>
+    <h1>Chat</h1>
+    <div id="chatWindow"></div>
+</body>
+</html>
