@@ -7,42 +7,250 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>Chat</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f4f7f6;
+        }
+
+        h1 {
+            color: #4CAF50;
+        }
+
+        #chatWindow {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #fff;
+            border-radius: 5px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .message {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+            max-width: 60%;
+            position: relative;
+        }
+
+        .sender {
+            font-weight: bold;
+            color: #4CAF50;
+        }
+
+        .message-text {
+            margin-top: 5px;
+        }
+
+        .own-message {
+            background-color: #d0f7d6;
+            align-self: flex-end;
+        }
+
+        .other-message {
+            background-color: #f1f1f1;
+            align-self: flex-start;
+        }
+
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        #inputContainer {
+            display: flex;
+            align-items: center;
+            margin-top: 20px;
+        }
+
+        #messageInput {
+            width: 80%;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+
+        #sendButton {
+            padding: 10px 20px;
+            margin-left: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        #sendButton:hover {
+            background-color: #45a049;
+        }
+
+        #sendButton:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+    </style>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            const getCookie = (name) => {
+                const value = `; ${document.cookie}`;
+                const parts = value.split(`; ${name}=`);
+                if (parts.length === 2) return parts.pop().split(';').shift();
+            };
+
             const params = new URLSearchParams(window.location.search);
-            const uuid = params.get('uuid');
-            const authToken = localStorage.getItem('authToken');
-            if (!uuid || !authToken) {
-                window.location.href = 'login.html';
+            let room_id = null;
+
+            const authToken = getCookie('authToken');
+            let targetUuid = params.get('uuid');
+            let targetName = params.get('name');
+            let selfUuid = getCookie('uuid');
+            let selfName = getCookie('name');
+
+            if (!authToken) {
+                window.location.href = 'http://127.0.0.1:5000';
                 return;
             }
 
-            fetch(`https://example.com/api/chat/${uuid}`, {
+            // Fetch messages from the server
+            fetch(`http://127.0.0.1:5001/room/messages?uuid=${targetUuid}&name=${targetName}`, {
                 headers: { 'Authorization': `Bearer ${authToken}` }
             })
             .then(response => {
                 if (response.status === 401) {
-                    localStorage.removeItem('authToken');
-                    window.location.href = 'login.html';
+                    document.cookie = 'authToken=;Max-Age=0;path=/;';
+                    window.location.href = 'http://127.0.0.1:5000';
                     return;
                 }
                 return response.json();
             })
             .then(data => {
                 const chatWindow = document.getElementById('chatWindow');
-                data.messages.forEach(message => {
-                    const messageItem = document.createElement('div');
-                    messageItem.className = 'message';
-                    messageItem.innerText = `${message.sender}: ${message.content}`;
-                    chatWindow.appendChild(messageItem);
-                });
+                const chatContainer = document.createElement('div');
+                chatContainer.classList.add('chat-container');
+                chatWindow.appendChild(chatContainer);
+
+                if (data.length > 0) {
+                    room_id = data[0].room_id;
+
+                    data.forEach(message => {
+                        const messageItem = document.createElement('div');
+                        messageItem.className = 'message';
+
+                        const senderElement = document.createElement('span');
+                        senderElement.className = 'sender';
+                        senderElement.innerText = message.sender_name;
+
+                        const messageTextElement = document.createElement('div');
+                        messageTextElement.className = 'message-text';
+                        messageTextElement.innerText = message.message;
+
+                        // Check if the message is from the current user
+                         if (message.sender_name.includes(targetName)) {
+                              messageItem.classList.add('other-message');
+                         } else {
+                              messageItem.classList.add('own-message');
+                         }
+
+                        messageItem.appendChild(senderElement);
+                        messageItem.appendChild(messageTextElement);
+
+                        chatContainer.appendChild(messageItem);
+                    });
+                } else {
+                    chatWindow.innerHTML = '<p>No messages available.</p>';
+                }
             })
             .catch(error => console.error('Error:', error));
+
+            // Send message functionality
+            const sendButton = document.getElementById('sendButton');
+            const messageInput = document.getElementById('messageInput');
+
+            sendButton.addEventListener('click', () => {
+                const messageContent = messageInput.value.trim();
+
+                if (messageContent !== '') {
+                    socket.emit('create_message', {
+                        room_id: room_id,
+                        message: messageContent,
+                        sender_uuid:selfUuid,
+                        sender_name:selfName
+                    });
+                }
+            });
+
+            // Connect to the Flask-SocketIO server
+            const socket = io('http://localhost:5001');
+
+            // Disable the send button by default
+            sendButton.disabled = true;
+
+            socket.on('connect', () => {
+                console.log('Connected to Flask-SocketIO server!');
+                sendButton.disabled = false; // Enable send button once connected
+            });
+
+            // Listen for the 'create_message' event and print it
+            socket.on('error', (data) => {
+                console.log('Received error event:', data);
+            });
+
+            // Listen for the 'message_created' event from the server
+            socket.on('message_created', (data) => {
+                const chatWindow = document.getElementById('chatWindow');
+                const chatContainer = chatWindow.querySelector('.chat-container');
+
+                // Create a new message item
+                const messageItem = document.createElement('div');
+                messageItem.className = 'message';
+                messageItem.classList.add('own-message');
+
+                // Add sender name
+                const senderElement = document.createElement('span');
+                senderElement.className = 'sender';
+                senderElement.innerText = data.sender_name;
+
+                // Add message text
+                const messageTextElement = document.createElement('div');
+                messageTextElement.className = 'message-text';
+                messageTextElement.innerText = data.message;
+
+                // Append sender and text to the message item
+                messageItem.appendChild(senderElement);
+                messageItem.appendChild(messageTextElement);
+
+                // Append the new message to the chat container
+                chatContainer.appendChild(messageItem);
+
+                // Scroll to the bottom of the chat window
+                chatWindow.scrollTop = chatWindow.scrollHeight;
+
+                document.getElementById('messageInput').value = '';
+
+            });
+
+            // Handle any error in connection
+            socket.on('connect_error', (error) => {
+                console.log('Connection failed:', error);
+            });
+
+            // Handle disconnection
+            socket.on('disconnect', () => {
+                console.log('Disconnected from server');
+            });
         });
     </script>
 </head>
 <body>
     <h1>Chat</h1>
     <div id="chatWindow"></div>
+    <div id="inputContainer">
+        <input id="messageInput" type="text" placeholder="Type a message" />
+        <button id="sendButton" disabled>Send</button>
+    </div>
 </body>
 </html>

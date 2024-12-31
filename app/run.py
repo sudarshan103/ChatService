@@ -11,11 +11,9 @@ socketio.init_app(app, cors_allowed_origins="*")
 init_broker_message_listener()
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5001)
+    # app.run(debug=True, port=5001)
     socketio.run(app,
                  debug=True,
                  host="0.0.0.0",
-                 port=5002,
-                 allow_unsafe_werkzeug=True,
-                 cors_allowed_origins="*",
-                 async_mode="threading")
+                 port=5001,
+                 allow_unsafe_werkzeug=True)

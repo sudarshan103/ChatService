@@ -22,16 +22,9 @@ def sample_message():
     return render_template('output.html')
 
 @endpoints.route('/contacts', methods=['GET'])
-@verify_auth_token
 def contacts():
     return render_template('contacts.html')
 
 @endpoints.route('/chat', methods=['GET'])
-@verify_auth_token
-def chat(**kwargs):
-    room_mates = []
-    user_self = kwargs.get('user_data')
-    room_mates.append(dict(name=user_self['name'],uuid=user_self['uuid']))
-    room_mates.append(dict(name=kwargs.get('name'),uuid=kwargs.get('uuid')))
-    room_id = ChatRepo.create_room(room_mates)
-    return render_template('chat.html', mates = room_mates, room=room_id)
+def chat():
+    return render_template('chat.html')
