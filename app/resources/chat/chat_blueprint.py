@@ -12,13 +12,19 @@ chat_api = Blueprint('chat_api', __name__)
 @chat_api.route('/room/messages', methods=['GET'])
 @verify_auth_token
 def read_messages(**kwargs):
+    if not request.args.get('room_id'):
+        return jsonify({'message': 'Missing required fields'}), 400
+    messages = ChatRepo.get_recent_messages(request.args.get('room_id'))
+    return json_util.dumps(messages, cls=ApiJSONEncoder)
+
+@chat_api.route('/room', methods=['GET'])
+@verify_auth_token
+def get_room(**kwargs):
     room_mates = []
     user_self = kwargs.get('user_data')
     room_mates.append(dict(name=user_self['name'], uuid=user_self['uuid']))
     room_mates.append(dict(name=request.args.get('name'), uuid=request.args.get('uuid')))
-    room_id = ChatRepo.create_room(room_mates)
-    messages = ChatRepo.get_recent_messages(room_id)
-    return json_util.dumps(messages, cls=ApiJSONEncoder)
+    return jsonify(ChatRepo.create_room(room_mates))
 
 @chat_api.route('/rooms', methods=['GET'])
 @verify_auth_token

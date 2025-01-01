@@ -20,6 +20,11 @@ class ChatRepo:
 
     @staticmethod
     def create_room(room_mates):
+
+        room_details = {
+            "room_type": 0
+        }
+
         room_mate_uuids = sorted([mate['uuid'] for mate in room_mates])
 
         existing_room = mongodb()['room'].find_one({
@@ -28,26 +33,30 @@ class ChatRepo:
         })
 
         if existing_room:
-            return existing_room['room_id']
+            room_details["room_id"] = existing_room['room_id']
+            room_details["room_name"] = existing_room['room_name']
+            return room_details
 
         # Create a new room
         room_id = str(uuid.uuid4())
+        room_details["room_id"] = room_id
         if len(room_mates) == 2:
             room_name = room_mates[1]['name']
         else:
             room_name = "Group conversation"
 
+        room_details["room_name"] = room_name
+
         new_room = {
-            "room_id": room_id,
             "created": datetime.now(timezone.utc).isoformat(),
             "updated": datetime.now(timezone.utc).isoformat(),
-            "room_type": 0,
-            "room_name": room_name,
             "room_mates": room_mates,
             "active": True
         }
+        new_room.update(room_details)
+
         mongodb()['room'].insert_one(new_room)
-        return room_id
+        return room_details
 
     @staticmethod
     def create_message(room_id, sender_uuid, sender_name, message_text):
@@ -73,11 +82,9 @@ class ChatRepo:
             "active": True,
             "room_id": room_id
         }
-
         messages = list(
             mongodb()['message'].find(query)
             .sort("created", 1)  # Sort by created date in descending order
             .limit(20)  # Limit to 20 documents
         )
-
         return messages

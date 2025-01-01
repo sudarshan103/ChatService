@@ -7,21 +7,181 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>Contacts</title>
+ <style>
+    /* Layout for the contacts and chat sections */
+    body {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        margin: 0;
+    }
+
+    /* Header */
+    h1, h2 {
+        color: black; /* Change color to black */
+        text-align: center;
+        margin: 10px 0;
+    }
+
+    #heading {
+        margin-top: 20px;
+    }
+
+    /* Wrapper for contacts and chat to align horizontally */
+    #mainContainer {
+        display: flex;
+        flex: 1;
+        width: 100%;
+    }
+
+    /* Contacts list styling */
+    #contactsListContainer {
+        width: 300px;
+        background-color: #f4f7f6;
+        padding: 20px;
+        overflow-y: auto;
+        border-right: 2px solid #ddd;
+        flex-shrink: 0;  /* Prevents shrinking */
+    }
+
+    #contactsList {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .contact {
+        cursor: pointer;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        background-color: #fff;
+        transition: background-color 0.3s;
+    }
+
+    .contact:hover, .selected-contact {
+        background-color: #e0f7e9;
+    }
+
+    /* Chat container styling */
+    #chatContainer {
+        flex-grow: 1; /* Ensures chatContainer takes the full remaining height */
+        display: flex;
+        flex-direction: column;
+        background-color: #f4f7f6;
+        padding: 20px;
+        position: relative; /* Ensures positioning of inputContainer */
+    }
+
+    #chatContent {
+        display: flex;
+        flex-direction: column; /* Top to bottom order for messages */
+        flex-grow: 1;
+        padding: 15px;
+        background-color: #fff;
+        border-radius: 5px;
+        overflow-y: auto; /* Make chatContent scrollable */
+        max-height: calc(100vh - 160px); /* Make space for inputContainer */
+        box-sizing: border-box;
+    }
+
+    /* Individual message containers */
+    .message {
+        margin: 10px 0;
+        padding: 10px;
+        border-radius: 5px;
+        position: relative;
+        display: flex;
+        flex-direction: column;  /* Stack sender and message text vertically */
+        min-width: 100px;
+        max-width: 70%; /* Optional: limits the message width for better readability */
+    }
+
+    /* Own message style (aligned to the right) */
+    .own-message {
+        background-color: #d0f7d6;
+        align-self: flex-end;  /* Align the entire message container to the right */
+        margin-left: auto;
+    }
+
+    /* Other message style (aligned to the left) */
+    .other-message {
+        background-color: #f1f1f1;
+        align-self: flex-start;  /* Align the entire message container to the left */
+    }
+
+    /* Sender and message text styling */
+    .sender {
+        font-weight: bold;
+        color: #4CAF50;
+        margin-bottom: 5px;  /* Space between sender and message */
+    }
+
+    .message-text {
+        word-wrap: break-word;
+        white-space: pre-wrap; /* Preserve line breaks in the message */
+    }
+
+    #inputContainer {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 10px;
+        background-color: #fff;
+        border-top: 1px solid #ddd;
+        width: 100%;
+        position: sticky; /* Ensures inputContainer stays at the bottom */
+        bottom: 0;
+        box-sizing: border-box;
+        z-index: 1; /* Ensure input container is above chat content */
+    }
+
+    #messageInput {
+        flex-grow: 1;
+        padding: 10px;
+        border-radius: 5px;
+        border: 1px solid #ddd;
+    }
+
+    #sendButton {
+        padding: 10px 20px;
+        margin-left: 10px;
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+
+    #sendButton:hover {
+        background-color: #45a049;
+    }
+
+    #sendButton:disabled {
+        background-color: #ccc;
+        cursor: not-allowed;
+    }
+</style>
+     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-
             const getCookie = (name) => {
                 const value = `; ${document.cookie}`;
                 const parts = value.split(`; ${name}=`);
                 if (parts.length === 2) return parts.pop().split(';').shift();
             };
 
+           let socketConnected = false;
+           let roomId = null;
+           let selfUuid = getCookie('uuid');
+           let selfName = getCookie('name');
+
             const authToken = getCookie('authToken');
             if (!authToken) {
                 window.location.href = 'http://127.0.0.1:5000';
                 return;
             } else {
-               document.getElementById('heading').innerHTML = `Welcome, <strong>${getCookie('person')}</strong>`;
+                document.getElementById('heading').innerHTML = `Welcome, <strong>${getCookie('person')}</strong>`;
             }
 
             fetch('http://127.0.0.1:5000/user', {
@@ -42,19 +202,168 @@
                     contactItem.className = 'contact';
                     const fullName = contact.last_name ? `${contact.first_name} ${contact.last_name}` : contact.first_name;
                     contactItem.innerHTML = `<strong>${fullName}</strong>`;
-                    contactItem.addEventListener('click', () => {
-                        window.location.href = `http://127.0.0.1:5001/chat?uuid=${contact.uuid}&name=${fullName}`;
-                    });
+                    contactItem.addEventListener('click', () => loadChat(contact.uuid, fullName, contactItem));
                     contactsList.appendChild(contactItem);
                 });
             })
             .catch(error => console.error('Error:', error));
+
+            const loadChat = (targetUuid, targetName, contactElement) => {
+                sendButton.disabled = true;
+                const authToken = getCookie('authToken');
+                const chatMessages = document.getElementById('chatMessages');
+                const roomTitle = document.getElementById('roomTitle');
+
+                // Clear the previous messages when a new contact is selected
+                chatMessages.innerHTML = '';
+
+                // Set room title to selected contact's name
+                roomTitle.innerText = targetName;
+
+                // Highlight selected contact
+                const allContacts = document.querySelectorAll('.contact');
+                allContacts.forEach(contact => contact.classList.remove('selected-contact'));
+                contactElement.classList.add('selected-contact');
+
+                // Fetch room details from the server
+                fetch(`http://127.0.0.1:5001/room?uuid=${targetUuid}&name=${targetName}`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                })
+                .then(response => response.json())
+                .then(roomDetails => {
+                    roomId = roomDetails.room_id;
+                    roomTitle.innerText = roomDetails.room_name;
+                    sendButton.disabled = !socketConnected || roomId == null ;
+
+                    // Fetch messages from the server
+                    return fetch(`http://127.0.0.1:5001/room/messages?room_id=${roomId}`, {
+                        headers: { 'Authorization': `Bearer ${authToken}` }
+                    });
+                })
+                .then(response => response.json())
+                .then(messages => {
+                    if (messages.length > 0) {
+                        messages.forEach(message => {
+                            const messageItem = document.createElement('div');
+                            messageItem.className = 'message';
+
+                            const senderElement = document.createElement('span');
+                            senderElement.className = 'sender';
+                            senderElement.innerText = message.sender_name;
+
+                            const messageTextElement = document.createElement('div');
+                            messageTextElement.className = 'message-text';
+                            messageTextElement.innerText = message.message;
+
+                            // Assign the class based on sender name
+                            if (message.sender_name === targetName) {
+                                messageItem.classList.add('other-message'); // This is the other user's message
+                            } else {
+                                messageItem.classList.add('own-message'); // This is the current user's message
+                            }
+
+                            messageItem.appendChild(senderElement);
+                            messageItem.appendChild(messageTextElement);
+                            chatMessages.appendChild(messageItem);
+                        });
+                    } else {
+                        chatMessages.innerHTML = '<p>No messages available.</p>';
+                    }
+
+                    // Ensure the chat content scrolls to the bottom if needed
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                })
+                .catch(error => console.error('Error:', error));
+            };
+               // Send message functionality
+                    const sendButton = document.getElementById('sendButton');
+                    const messageInput = document.getElementById('messageInput');
+
+                    sendButton.addEventListener('click', () => {
+                        const messageContent = messageInput.value.trim();
+
+                        if (messageContent !== '') {
+                            socket.emit('create_message', {
+                                room_id: roomId,
+                                message: messageContent,
+                                sender_uuid: selfUuid,
+                                sender_name: selfName
+                            });
+                            console.log("emitted");
+                        }
+                    });
+
+                    // Connect to the Flask-SocketIO server
+                    const socket = io('http://localhost:5001');
+
+                    socket.on('connect', () => {
+                        console.log('Connected to Flask-SocketIO server!');
+                        socketConnected = true;
+                    });
+
+                    // Listen for the 'create_message' event and print it
+                    socket.on('error', (data) => {
+                        console.log('Received error event:', data);
+                    });
+
+                    // Listen for the 'message_created' event from the server
+                    socket.on('message_created', (message) => {
+                        const chatMessages = document.getElementById('chatMessages');
+                        const messageItem = document.createElement('div');
+                        messageItem.className = 'message';
+
+                        const senderElement = document.createElement('span');
+                        senderElement.className = 'sender';
+                        senderElement.innerText = message.sender_name;
+
+                        const messageTextElement = document.createElement('div');
+                        messageTextElement.className = 'message-text';
+                        messageTextElement.innerText = message.message;
+                        messageItem.classList.add('own-message');
+
+                        messageItem.appendChild(senderElement);
+                        messageItem.appendChild(messageTextElement);
+                        chatMessages.appendChild(messageItem);
+
+                        document.getElementById('messageInput').value = '';
+
+                    });
+
+                    // Handle any error in connection
+                    socket.on('connect_error', (error) => {
+                        console.log('Connection failed:', error);
+                    });
+
+                    // Handle disconnection
+                    socket.on('disconnect', () => {
+                        console.log('Disconnected from server');
+                    });
+
         });
+
     </script>
 </head>
 <body>
-    <div id="heading"></div>
-    <h1>Colleagues</h1>
-    <div id="contactsList"></div>
+    <h2 id="heading">Welcome to the Chat</h2>
+
+    <div id="mainContainer">
+        <!-- Contacts List -->
+        <div id="contactsListContainer">
+            <h1>Colleagues</h1>
+            <div id="contactsList"></div>
+        </div>
+
+        <!-- Chat Container -->
+        <div id="chatContainer">
+            <div id="chatContent">
+                <h1 id="roomTitle">Chat</h1>
+                <div id="chatMessages"></div>
+            </div>
+            <div id="inputContainer">
+                <input id="messageInput" type="text" placeholder="Type a message" />
+                <button id="sendButton">Send</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
