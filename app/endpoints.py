@@ -10,7 +10,7 @@ endpoints = Blueprint('endpoints', __name__)
 @endpoints.route('/', methods=['GET'])
 @verify_auth_token
 def home():
-    return render_template('contacts.html')
+    return render_template('chat.html')
 
 @endpoints.route('/create-sample-chat', methods=['GET'])
 def sample_message():
@@ -21,9 +21,6 @@ def sample_message():
     ChatRepo.create_message(room_id,room_mates[0]["uuid"],room_mates[0]["name"],"Hello Emp2")
     return render_template('output.html')
 
-@endpoints.route('/contacts', methods=['GET'])
-def contacts():
-    return render_template('contacts.html')
 
 @endpoints.route('/chat', methods=['GET'])
 def chat():

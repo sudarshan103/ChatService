@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>Contacts</title>
+    <title>Chat</title>
  <style>
     /* Layout for the contacts and chat sections */
     body {
@@ -226,7 +226,7 @@
                 contactElement.classList.add('selected-contact');
 
                 // Fetch room details from the server
-                fetch(`http://127.0.0.1:5001/room?uuid=${targetUuid}&name=${targetName}`, {
+                fetch(`http://127.0.0.1:5001/room/by-participants?uuid=${targetUuid}&name=${targetName}`, {
                     headers: { 'Authorization': `Bearer ${authToken}` }
                 })
                 .then(response => response.json())
@@ -294,7 +294,14 @@
                     });
 
                     // Connect to the Flask-SocketIO server
-                    const socket = io('http://localhost:5001');
+                    const socket = io('http://localhost:5001',
+                                        {
+                                            transports: ['websocket'],
+                                            reconnection: true,
+                                            reconnectionAttempts: 5,
+                                            reconnectionDelay: 1000
+                                        }
+                                      );
 
                     socket.on('connect', () => {
                         console.log('Connected to Flask-SocketIO server!');
@@ -324,6 +331,7 @@
                         messageItem.appendChild(senderElement);
                         messageItem.appendChild(messageTextElement);
                         chatMessages.appendChild(messageItem);
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
 
                         document.getElementById('messageInput').value = '';
 

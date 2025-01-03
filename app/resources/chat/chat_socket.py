@@ -5,7 +5,6 @@ from flask_socketio import emit
 from app.models.extensions import socketio
 from app.resources.broker.message_sender import send_to_broker
 
-
 @socketio.on('create_message')
 def on_create_message(data):
     print("Received emitted message from client")
@@ -27,7 +26,7 @@ def on_create_message(data):
             emit('error', {"error": "Message cannot be empty."})
             return
 
-        send_to_broker(json.dumps(data), chat_message_queue)
+        socketio.start_background_task(target=send_to_broker, message=json.dumps(data), queue_name = chat_message_queue)
 
         emit('message_created', data)
 

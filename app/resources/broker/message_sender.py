@@ -1,6 +1,8 @@
+import eventlet
 import pika
 
 def send_to_broker(message, queue_name='default'):
+    eventlet.sleep(5)
     connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
     channel = connection.channel()
 

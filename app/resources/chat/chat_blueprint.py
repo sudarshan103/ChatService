@@ -17,7 +17,7 @@ def read_messages(**kwargs):
     messages = ChatRepo.get_recent_messages(request.args.get('room_id'))
     return json_util.dumps(messages, cls=ApiJSONEncoder)
 
-@chat_api.route('/room', methods=['GET'])
+@chat_api.route('/room/by-participants', methods=['GET'])
 @verify_auth_token
 def get_room(**kwargs):
     room_mates = []
@@ -26,7 +26,7 @@ def get_room(**kwargs):
     room_mates.append(dict(name=request.args.get('name'), uuid=request.args.get('uuid')))
     return jsonify(ChatRepo.create_room(room_mates))
 
-@chat_api.route('/rooms', methods=['GET'])
+@chat_api.route('/room/active-by-user', methods=['GET'])
 @verify_auth_token
 def get_rooms(*args, **kwargs):
     if not kwargs.get('uuid'):
