@@ -244,32 +244,9 @@
                 .then(messages => {
                     if (messages.length > 0) {
                         messages.forEach(message => {
-                            const messageItem = document.createElement('div');
-                            messageItem.className = 'message';
-
-                            const senderElement = document.createElement('span');
-                            senderElement.className = 'sender';
-                            senderElement.innerText = message.sender_name;
-
-                            const messageTextElement = document.createElement('div');
-                            messageTextElement.className = 'message-text';
-                            messageTextElement.innerText = message.message;
-
-                            // Assign the class based on sender name
-                            if (message.sender_name === targetName) {
-                                messageItem.classList.add('other-message'); // This is the other user's message
-                            } else {
-                                messageItem.classList.add('own-message'); // This is the current user's message
-                            }
-
-                            messageItem.appendChild(senderElement);
-                            messageItem.appendChild(messageTextElement);
-                            chatMessages.appendChild(messageItem);
+                           displayMessage(message);
                         });
-                    } else {
-                        chatMessages.innerHTML = '<p>No messages available.</p>';
                     }
-
                     // Ensure the chat content scrolls to the bottom if needed
                     chatMessages.scrollTop = chatMessages.scrollHeight;
                 })
@@ -281,7 +258,6 @@
 
                     sendButton.addEventListener('click', () => {
                         const messageContent = messageInput.value.trim();
-
                         if (messageContent !== '') {
                             socket.emit('create_message', {
                                 room_id: roomId,
@@ -289,9 +265,34 @@
                                 sender_uuid: selfUuid,
                                 sender_name: selfName
                             });
-                            console.log("emitted");
+                            document.getElementById('messageInput').value = '';
                         }
                     });
+
+                    function displayMessage(message) {
+                           const chatMessages = document.getElementById('chatMessages');
+                           const messageItem = document.createElement('div');
+                           messageItem.className = 'message';
+
+                           const senderElement = document.createElement('span');
+                           senderElement.className = 'sender';
+                           senderElement.innerText = message.sender_name;
+
+                           const messageTextElement = document.createElement('div');
+                           messageTextElement.className = 'message-text';
+                           messageTextElement.innerText = message.message;
+
+                           if(message.sender_uuid === selfUuid) {
+                                messageItem.classList.add('self-message');
+                           } else {
+                                messageItem.classList.add('other-message');
+                           }
+
+                           messageItem.appendChild(senderElement);
+                           messageItem.appendChild(messageTextElement);
+                           chatMessages.appendChild(messageItem);
+                           chatMessages.scrollTop = chatMessages.scrollHeight;
+                    }
 
                     // Connect to the Flask-SocketIO server
                     const socket = io('http://localhost:5001',
@@ -313,28 +314,10 @@
                         console.log('Received error event:', data);
                     });
 
-                    // Listen for the 'message_created' event from the server
-                    socket.on('message_created', (message) => {
-                        const chatMessages = document.getElementById('chatMessages');
-                        const messageItem = document.createElement('div');
-                        messageItem.className = 'message';
-
-                        const senderElement = document.createElement('span');
-                        senderElement.className = 'sender';
-                        senderElement.innerText = message.sender_name;
-
-                        const messageTextElement = document.createElement('div');
-                        messageTextElement.className = 'message-text';
-                        messageTextElement.innerText = message.message;
-                        messageItem.classList.add('own-message');
-
-                        messageItem.appendChild(senderElement);
-                        messageItem.appendChild(messageTextElement);
-                        chatMessages.appendChild(messageItem);
-                        chatMessages.scrollTop = chatMessages.scrollHeight;
-
-                        document.getElementById('messageInput').value = '';
-
+                    socket.on('message_received', (message) => {
+                        if(message.room_id == roomId) {
+                            displayMessage(message);
+                        }
                     });
 
                     // Handle any error in connection

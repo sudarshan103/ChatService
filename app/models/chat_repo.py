@@ -41,7 +41,7 @@ class ChatRepo:
         room_id = str(uuid.uuid4())
         room_details["room_id"] = room_id
         if len(room_mates) == 2:
-            room_name = room_mates[1]['name']
+            room_name = f"{room_mates[0]['name']},{room_mates[1]['name']}"
         else:
             room_name = "Group conversation"
 

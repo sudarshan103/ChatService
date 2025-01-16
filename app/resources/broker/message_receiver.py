@@ -7,7 +7,6 @@ from app.constants import chat_message_queue
 from app.models.chat_repo import ChatRepo
 
 
-
 def start_consumer():
     def callback(ch, method, properties, body):
         print(f"[x] Received: {body.decode()}")
