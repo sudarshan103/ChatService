@@ -7,164 +7,236 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>Chat</title>
- <style>
-    /* Layout for the contacts and chat sections */
-    body {
+    <style>
+        /* Layout for the contacts and chat sections */
+        body {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            margin: 0;
+        }
+
+        /* Header */
+        h1, h2 {
+            color: black; /* Change color to black */
+            text-align: center;
+            margin: 10px 0;
+        }
+
+        #heading {
+            margin-top: 20px;
+        }
+
+        /* Wrapper for contacts and chat to align horizontally */
+        #mainContainer {
+            display: flex;
+            flex: 1;
+            width: 100%;
+        }
+
+        /* Contacts list styling */
+        #contactsListContainer {
+            width: 300px;
+            background-color: #f4f7f6;
+            padding: 20px;
+            overflow-y: auto;
+            border-right: 2px solid #ddd;
+            flex-shrink: 0;  /* Prevents shrinking */
+        }
+
+        #contactsList {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .contact {
+            cursor: pointer;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #fff;
+            transition: background-color 0.3s;
+        }
+
+        .contact:hover, .selected-contact {
+            background-color: #e0f7e9;
+        }
+
+        /* Chat container styling */
+        #chatContainer {
+            flex-grow: 1; /* Ensures chatContainer takes the full remaining height */
+            display: flex;
+            flex-direction: column;
+            background-color: #f4f7f6;
+            padding: 20px;
+            position: relative; /* Ensures positioning of inputContainer */
+        }
+
+        #chatContent {
+            display: flex;
+            flex-direction: column; /* Top to bottom order for messages */
+            flex-grow: 1;
+            padding: 15px;
+            background-color: #fff;
+            border-radius: 5px;
+            overflow-y: auto; /* Make chatContent scrollable */
+            max-height: calc(100vh - 160px); /* Make space for inputContainer */
+            box-sizing: border-box;
+        }
+
+        /* Individual message containers */
+        .message {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+            position: relative;
+            display: flex;
+            flex-direction: column;  /* Stack sender and message text vertically */
+            min-width: 100px;
+            max-width: 70%; /* Optional: limits the message width for better readability */
+        }
+
+        /* Own message style (aligned to the right) */
+        .own-message {
+            background-color: #d0f7d6;
+            align-self: flex-end;  /* Align the entire message container to the right */
+            margin-left: auto;
+        }
+
+        /* Other message style (aligned to the left) */
+        .other-message {
+            background-color: #f1f1f1;
+            align-self: flex-start;  /* Align the entire message container to the left */
+        }
+
+        /* Sender and message text styling */
+        .sender {
+            font-weight: bold;
+            color: #4CAF50;
+            margin-bottom: 5px;  /* Space between sender and message */
+        }
+
+        .message-text {
+            word-wrap: break-word;
+            white-space: pre-wrap; /* Preserve line breaks in the message */
+        }
+
+        /* Tick container */
+    .tick-container {
         display: flex;
-        flex-direction: column;
-        height: 100vh;
-        margin: 0;
-    }
-
-    /* Header */
-    h1, h2 {
-        color: black; /* Change color to black */
-        text-align: center;
-        margin: 10px 0;
-    }
-
-    #heading {
-        margin-top: 20px;
-    }
-
-    /* Wrapper for contacts and chat to align horizontally */
-    #mainContainer {
-        display: flex;
-        flex: 1;
-        width: 100%;
-    }
-
-    /* Contacts list styling */
-    #contactsListContainer {
-        width: 300px;
-        background-color: #f4f7f6;
-        padding: 20px;
-        overflow-y: auto;
-        border-right: 2px solid #ddd;
-        flex-shrink: 0;  /* Prevents shrinking */
-    }
-
-    #contactsList {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-    }
-
-    .contact {
-        cursor: pointer;
-        padding: 10px;
-        border: 1px solid #ddd;
-        border-radius: 5px;
-        background-color: #fff;
-        transition: background-color 0.3s;
-    }
-
-    .contact:hover, .selected-contact {
-        background-color: #e0f7e9;
-    }
-
-    /* Chat container styling */
-    #chatContainer {
-        flex-grow: 1; /* Ensures chatContainer takes the full remaining height */
-        display: flex;
-        flex-direction: column;
-        background-color: #f4f7f6;
-        padding: 20px;
-        position: relative; /* Ensures positioning of inputContainer */
-    }
-
-    #chatContent {
-        display: flex;
-        flex-direction: column; /* Top to bottom order for messages */
-        flex-grow: 1;
-        padding: 15px;
-        background-color: #fff;
-        border-radius: 5px;
-        overflow-y: auto; /* Make chatContent scrollable */
-        max-height: calc(100vh - 160px); /* Make space for inputContainer */
-        box-sizing: border-box;
-    }
-
-    /* Individual message containers */
-    .message {
-        margin: 10px 0;
-        padding: 10px;
-        border-radius: 5px;
-        position: relative;
-        display: flex;
-        flex-direction: column;  /* Stack sender and message text vertically */
-        min-width: 100px;
-        max-width: 70%; /* Optional: limits the message width for better readability */
-    }
-
-    /* Own message style (aligned to the right) */
-    .own-message {
-        background-color: #d0f7d6;
-        align-self: flex-end;  /* Align the entire message container to the right */
+        justify-content: flex-end;
+        align-items: center;
+        margin-top: 5px;
         margin-left: auto;
     }
 
-    /* Other message style (aligned to the left) */
-    .other-message {
-        background-color: #f1f1f1;
-        align-self: flex-start;  /* Align the entire message container to the left */
+    /* General tick styles */
+    .tick {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        margin-left: -4px; /* Overlap ticks slightly */
+        background-color: transparent;
+        border: solid 1.5px transparent;
+        border-radius: 50%;
+        transform: rotate(45deg);
+        position: relative;
+        /* Added content for ticks, like borders and position adjustments, if needed */
     }
 
-    /* Sender and message text styling */
-    .sender {
-        font-weight: bold;
-        color: #4CAF50;
-        margin-bottom: 5px;  /* Space between sender and message */
+    /* Tick colors */
+    .tick.gray {
+        border-color: gray;
     }
 
-    .message-text {
-        word-wrap: break-word;
-        white-space: pre-wrap; /* Preserve line breaks in the message */
+    .tick.blue {
+        border-color: #4caf50; /* WhatsApp-style blue ticks */
     }
 
-    #inputContainer {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 10px;
-        background-color: #fff;
-        border-top: 1px solid #ddd;
-        width: 100%;
-        position: sticky; /* Ensures inputContainer stays at the bottom */
-        bottom: 0;
-        box-sizing: border-box;
-        z-index: 1; /* Ensure input container is above chat content */
+    /* Double tick styling */
+    .tick.double::before,
+    .tick.double::after {
+        content: '';
+        position: absolute;
+        background-color: currentColor;
+        width: 3px;
+        height: 6px;
+        top: 2px;
+        left: 3px;
     }
 
-    #messageInput {
-        flex-grow: 1;
-        padding: 10px;
-        border-radius: 5px;
-        border: 1px solid #ddd;
+    .tick.double::after {
+        transform: translate(4px, 0);
+        top: 3px;
     }
 
-    #sendButton {
-        padding: 10px 20px;
-        margin-left: 10px;
-        background-color: #4CAF50;
-        color: white;
-        border: none;
-        border-radius: 5px;
-        cursor: pointer;
+    /* Single tick styling */
+    .tick.single::before {
+        content: '';
+        position: absolute;
+        background-color: currentColor;
+        width: 3px;
+        height: 6px;
+        top: 2px;
+        left: 3px;
     }
 
-    #sendButton:hover {
-        background-color: #45a049;
-    }
+        #inputContainer {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+            background-color: #fff;
+            border-top: 1px solid #ddd;
+            width: 100%;
+            position: sticky; /* Ensures inputContainer stays at the bottom */
+            bottom: 0;
+            box-sizing: border-box;
+            z-index: 1; /* Ensure input container is above chat content */
+        }
 
-    #sendButton:disabled {
-        background-color: #ccc;
-        cursor: not-allowed;
-    }
-</style>
-     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+        #messageInput {
+            flex-grow: 1;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+
+        #sendButton {
+            padding: 10px 20px;
+            margin-left: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        #sendButton:hover {
+            background-color: #45a049;
+        }
+
+        #sendButton:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+    </style>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+
+
+           const socket = io('http://localhost:5001',
+                               {
+                                  transports: ['websocket'],
+                                  reconnection: true,
+                                  reconnectionAttempts: 5,
+                                  reconnectionDelay: 1000
+                                }
+                              );
+
+
             const getCookie = (name) => {
                 const value = `; ${document.cookie}`;
                 const parts = value.split(`; ${name}=`);
@@ -175,6 +247,7 @@
            let roomId = null;
            let selfUuid = getCookie('uuid');
            let selfName = getCookie('name');
+           const chatContent = document.getElementById('chatContent');
 
             const authToken = getCookie('authToken');
             if (!authToken) {
@@ -235,6 +308,41 @@
                     roomTitle.innerText = roomDetails.room_name;
                     sendButton.disabled = !socketConnected || roomId == null ;
 
+                    socket.on(`${roomId}`, (message) => {
+                        if(message.action == 'message_received') {
+                            displayMessage(message);
+                            requestAnimationFrame(() => {
+                                chatContent.scrollTop = chatContent.scrollHeight;
+                            });
+                            let payload = {
+                                room_id: roomId,
+                                reader_uuid:selfUuid,
+                                message_ids: [message.message_id],
+                                delivery_status: 2
+                            };
+                            socket.emit('update_delivery_status', payload);
+
+                        }else if(message.action == 'delivery_updated' && message.reader_uuid !== selfUuid) {
+                            message.message_ids.forEach((messageId) => {
+                                    const messageElement = document.getElementById(`message-${messageId}`);
+                                    if (messageElement) {
+                                        const tickContainer = messageElement.querySelector('.tick-container');
+                                         if (message.delivery_status === 2) {
+                                            tickContainer.innerHTML =
+                                                `<span class="tick double blue"></span>
+                                                <span class="tick double blue"></span>`;
+                                        } else if (message.delivery_status === 1) {
+                                            tickContainer.innerHTML =
+                                                `<span class="tick double gray"></span>
+                                                <span class="tick double gray"></span>`;
+                                        } else {
+                                            tickContainer.innerHTML = `<span class="tick single gray"></span>`;
+                                        }
+                                    }
+                            });
+                        }
+                    });
+
                     // Fetch messages from the server
                     return fetch(`http://127.0.0.1:5001/room/messages?room_id=${roomId}`, {
                         headers: { 'Authorization': `Bearer ${authToken}` }
@@ -242,13 +350,29 @@
                 })
                 .then(response => response.json())
                 .then(messages => {
+                    let newMessageIds = [];
                     if (messages.length > 0) {
                         messages.forEach(message => {
+                           if (message.delivery_status < 2 && message.sender_uuid !== selfUuid) {
+                                 newMessageIds.push(message.message_id);
+                            }
                            displayMessage(message);
                         });
                     }
-                    // Ensure the chat content scrolls to the bottom if needed
-                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                    requestAnimationFrame(() => {
+                         chatContent.scrollTop = chatContent.scrollHeight;
+                    });
+
+                    if (newMessageIds.length > 0) {
+                        const payload = {
+                            room_id: roomId,
+                            reader_uuid:selfUuid,
+                            message_ids: newMessageIds,
+                            delivery_status: 2
+                        };
+                        socket.emit('update_delivery_status', payload);
+                    }
+
                 })
                 .catch(error => console.error('Error:', error));
             };
@@ -260,6 +384,7 @@
                         const messageContent = messageInput.value.trim();
                         if (messageContent !== '') {
                             socket.emit('create_message', {
+                                message_id: generateUUID(),
                                 room_id: roomId,
                                 message: messageContent,
                                 sender_uuid: selfUuid,
@@ -273,6 +398,7 @@
                            const chatMessages = document.getElementById('chatMessages');
                            const messageItem = document.createElement('div');
                            messageItem.className = 'message';
+                           messageItem.id = `message-${message.message_id}`;
 
                            const senderElement = document.createElement('span');
                            senderElement.className = 'sender';
@@ -282,8 +408,33 @@
                            messageTextElement.className = 'message-text';
                            messageTextElement.innerText = message.message;
 
+                           const tickContainer = document.createElement('div');
+                           tickContainer.className = 'tick-container';
+
                            if(message.sender_uuid === selfUuid) {
-                                messageItem.classList.add('self-message');
+                                messageItem.classList.add('own-message');
+
+                                const tickContainer = document.createElement('div');
+                                tickContainer.className = 'tick-container';
+
+                                let tickElement = document.createElement('span');
+                                tickElement.className = 'tick';
+
+                                if (message.delivery_status === 2) {
+                                    tickContainer.innerHTML =
+                                        `<span class="tick double blue"></span>
+                                        <span class="tick double blue"></span>`;
+                                } else if (message.delivery_status === 1) {
+                                    tickContainer.innerHTML =
+                                        `<span class="tick double gray"></span>
+                                        <span class="tick double gray"></span>`;
+                                } else {
+                                    tickContainer.innerHTML = `<span class="tick single gray"></span>`;
+                                }
+
+                                messageTextElement.appendChild(tickContainer);
+
+
                            } else {
                                 messageItem.classList.add('other-message');
                            }
@@ -291,18 +442,14 @@
                            messageItem.appendChild(senderElement);
                            messageItem.appendChild(messageTextElement);
                            chatMessages.appendChild(messageItem);
-                           chatMessages.scrollTop = chatMessages.scrollHeight;
                     }
 
-                    // Connect to the Flask-SocketIO server
-                    const socket = io('http://localhost:5001',
-                                        {
-                                            transports: ['websocket'],
-                                            reconnection: true,
-                                            reconnectionAttempts: 5,
-                                            reconnectionDelay: 1000
-                                        }
-                                      );
+                    function generateUUID() {
+                        return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c =>
+                            (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+                        );
+                    }
+
 
                     socket.on('connect', () => {
                         console.log('Connected to Flask-SocketIO server!');
@@ -312,12 +459,6 @@
                     // Listen for the 'create_message' event and print it
                     socket.on('error', (data) => {
                         console.log('Received error event:', data);
-                    });
-
-                    socket.on('message_received', (message) => {
-                        if(message.room_id == roomId) {
-                            displayMessage(message);
-                        }
                     });
 
                     // Handle any error in connection
@@ -335,26 +476,26 @@
     </script>
 </head>
 <body>
-    <h2 id="heading">Welcome to the Chat</h2>
+<h2 id="heading">Welcome to the Chat</h2>
 
-    <div id="mainContainer">
-        <!-- Contacts List -->
-        <div id="contactsListContainer">
-            <h1>Colleagues</h1>
-            <div id="contactsList"></div>
+<div id="mainContainer">
+    <!-- Contacts List -->
+    <div id="contactsListContainer">
+        <h1>Colleagues</h1>
+        <div id="contactsList"></div>
+    </div>
+
+    <!-- Chat Container -->
+    <div id="chatContainer">
+        <div id="chatContent">
+            <h1 id="roomTitle">Chat</h1>
+            <div id="chatMessages"></div>
         </div>
-
-        <!-- Chat Container -->
-        <div id="chatContainer">
-            <div id="chatContent">
-                <h1 id="roomTitle">Chat</h1>
-                <div id="chatMessages"></div>
-            </div>
-            <div id="inputContainer">
-                <input id="messageInput" type="text" placeholder="Type a message" />
-                <button id="sendButton">Send</button>
-            </div>
+        <div id="inputContainer">
+            <input id="messageInput" type="text" placeholder="Type a message"/>
+            <button id="sendButton">Send</button>
         </div>
     </div>
+</div>
 </body>
 </html>

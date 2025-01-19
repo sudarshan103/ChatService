@@ -12,15 +12,15 @@ class ChatRepo:
         sender_name = data.get('sender_name')
         message_text = data.get('message')
         room_id = data.get('room_id')
+        message_id = data.get('message_id')
 
         # Create the message
-        message = ChatRepo.create_message(room_id, sender_uuid, sender_name, message_text)
+        message = ChatRepo.create_message(room_id, sender_uuid, sender_name, message_id, message_text)
         del message["_id"]
         return message
 
     @staticmethod
     def create_room(room_mates):
-
         room_details = {
             "room_type": 0
         }
@@ -59,8 +59,7 @@ class ChatRepo:
         return room_details
 
     @staticmethod
-    def create_message(room_id, sender_uuid, sender_name, message_text):
-        message_id = str(uuid.uuid4())
+    def create_message(room_id, sender_uuid, sender_name, message_id, message_text):
         message = {
             "message_id": message_id,
             "room_id": room_id,
@@ -88,3 +87,32 @@ class ChatRepo:
             .limit(20)  # Limit to 20 documents
         )
         return messages
+
+    @staticmethod
+    def update_delivery_status(data):
+        reader_uuid = data.get('reader_uuid')
+        message_ids = data.get('message_ids')
+        delivery_status = data.get('delivery_status')
+        trail_entry = {
+            "reader_uuid": reader_uuid,
+            "created": datetime.now(timezone.utc).isoformat(),
+            "delivery_status":delivery_status
+        }
+        for message_id in message_ids:
+            mongodb()['message'].update_one(
+                {
+                    "message_id": message_id,
+                    "delivery_status_trail": {
+                        "$not": {
+                            "$elemMatch": {
+                                "reader_uuid":  data.get('reader_uuid'),
+                                "delivery_status": data.get('delivery_status')
+                            }
+                        }
+                    }
+                },
+                {
+                    "$push": {"delivery_status_trail": trail_entry},
+                    "$set": {"delivery_status": data.get('delivery_status')}
+                }
+            )
