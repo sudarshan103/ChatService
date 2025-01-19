@@ -9,7 +9,7 @@ from app.models.chat_repo import ChatRepo
 
 def start_message_consumer():
     def callback(ch, method, properties, body):
-        print(f"[chat] Received: {body.decode()}")
+        print(f"MQTT [chat] Received: {body.decode()}")
         from app.run import app
         with app.app_context():
             ChatRepo.receive_create_message_command(json.loads(body.decode()))
@@ -18,7 +18,7 @@ def start_message_consumer():
 
 def start_delivery_updates_consumer():
     def callback(ch, method, properties, body):
-        print(f"[deliveryUpdate] Received: {body.decode()}")
+        print(f"MQTT [deliveryUpdate] Received: {body.decode()}")
         from app.run import app
         with app.app_context():
             ChatRepo.update_delivery_status(json.loads(body.decode()))

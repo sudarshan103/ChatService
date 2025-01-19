@@ -314,13 +314,15 @@
                             requestAnimationFrame(() => {
                                 chatContent.scrollTop = chatContent.scrollHeight;
                             });
-                            let payload = {
-                                room_id: roomId,
-                                reader_uuid:selfUuid,
-                                message_ids: [message.message_id],
-                                delivery_status: 2
-                            };
-                            socket.emit('update_delivery_status', payload);
+                            if(message.sender_uuid !== selfUuid) {
+                                let payload = {
+                                    room_id: roomId,
+                                    reader_uuid:selfUuid,
+                                    message_ids: [message.message_id],
+                                    delivery_status: 2
+                                };
+                                socket.emit('update_delivery_status', payload);
+                            }
 
                         }else if(message.action == 'delivery_updated' && message.reader_uuid !== selfUuid) {
                             message.message_ids.forEach((messageId) => {

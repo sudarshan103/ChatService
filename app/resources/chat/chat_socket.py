@@ -1,5 +1,6 @@
 import json
 
+
 from flask_socketio import emit
 
 from app.constants import chat_message_queue, chat_delivery_update_queue
@@ -39,9 +40,9 @@ def on_create_message(data):
 
         data["action"] = 'message_received'
 
-        emit(room_id, data, broadcast=True)
-
         socketio.start_background_task(target=enqueue_message, message=json.dumps(data), queue_name=chat_message_queue)
+
+        emit(room_id, data, broadcast=True)
 
     except Exception as e:
         emit('error', {"error": str(e)})
@@ -70,9 +71,9 @@ def on_update_delivery_status(data):
 
         data["action"] = 'delivery_updated'
 
-        emit(room_id, data, broadcast=True)
-
         socketio.start_background_task(target=enqueue_message, message=json.dumps(data), queue_name=chat_delivery_update_queue)
+
+        emit(room_id, data, broadcast=True)
 
     except Exception as e:
         emit('error', {"error": str(e)})

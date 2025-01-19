@@ -2,7 +2,7 @@ import eventlet
 import pika
 
 def enqueue_message(message, queue_name='default'):
-    eventlet.sleep(5)
+    eventlet.sleep(10)
     connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
     channel = connection.channel()
 
