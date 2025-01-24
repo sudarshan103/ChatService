@@ -15,7 +15,6 @@ socketio.init_app(app, cors_allowed_origins="*", async_mode='eventlet', engineio
 init_broker_message_listener()
 
 if __name__ == '__main__':
-    # app.run(debug=True, port=5001)
     socketio.run(app,
                  debug=True,
                  host="0.0.0.0",

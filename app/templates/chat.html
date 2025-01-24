@@ -145,6 +145,11 @@
         /* Added content for ticks, like borders and position adjustments, if needed */
     }
 
+    .tick-icon {
+        display: inline-block;
+        vertical-align: middle;
+    }
+
     /* Tick colors */
     .tick.gray {
         border-color: gray;
@@ -397,53 +402,62 @@
                     });
 
                     function displayMessage(message) {
-                           const chatMessages = document.getElementById('chatMessages');
-                           const messageItem = document.createElement('div');
-                           messageItem.className = 'message';
-                           messageItem.id = `message-${message.message_id}`;
+                        const chatMessages = document.getElementById('chatMessages');
+                        const messageItem = document.createElement('div');
+                        messageItem.className = 'message';
+                        messageItem.id = `message-${message.message_id}`;
 
-                           const senderElement = document.createElement('span');
-                           senderElement.className = 'sender';
-                           senderElement.innerText = message.sender_name;
+                        const senderElement = document.createElement('span');
+                        senderElement.className = 'sender';
+                        senderElement.innerText = message.sender_name;
 
-                           const messageTextElement = document.createElement('div');
-                           messageTextElement.className = 'message-text';
-                           messageTextElement.innerText = message.message;
+                        const messageTextElement = document.createElement('div');
+                        messageTextElement.className = 'message-text';
+                        messageTextElement.innerText = message.message;
 
-                           const tickContainer = document.createElement('div');
-                           tickContainer.className = 'tick-container';
+                        const timeElement = document.createElement('span');
+                        timeElement.className = 'time';
+                        timeElement.innerText = formatTimestamp(message.created); // Format the timestamp
+                        timeElement.style.fontSize = '12px'; // Smaller font size
+                        timeElement.style.color = '#888'; // Optional: Light gray color
+                        timeElement.style.marginTop = '5px'; // Small gap from the message text
+                        timeElement.style.alignSelf = 'flex-end'; // Align to the bottom right for right-aligned messages
 
-                           if(message.sender_uuid === selfUuid) {
-                                messageItem.classList.add('own-message');
+                        const tickContainer = document.createElement('div');
+                        tickContainer.className = 'tick-container';
 
-                                const tickContainer = document.createElement('div');
-                                tickContainer.className = 'tick-container';
+                        if (message.sender_uuid === selfUuid) {
+                            messageItem.classList.add('own-message');
+                            if (message.delivery_status === 2) {
+                                tickContainer.innerHTML = `
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="14" viewBox="0 0 28 24" fill="none" stroke="#2196F3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="tick-icon">
+                                        <path d="M18 8L7 19l-5-5"></path>
+                                        <path d="M24 6L13 17l-5-5"></path>
+                                    </svg>
+                                `;
+                            } else if (message.delivery_status === 1) {
+                                tickContainer.innerHTML = `
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="14" viewBox="0 0 28 24" fill="none" stroke="#B0BEC5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="tick-icon">
+                                        <path d="M18 8L7 19l-5-5"></path>
+                                        <path d="M24 6L13 17l-5-5"></path>
+                                    </svg>
+                                `;
+                            } else {
+                                tickContainer.innerHTML = `
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#B0BEC5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="tick-icon">
+                                        <path d="M20 6L9 17l-5-5"></path>
+                                    </svg>
+                                `;
+                            }
+                            messageTextElement.appendChild(tickContainer);
+                        } else {
+                            messageItem.classList.add('other-message');
+                        }
 
-                                let tickElement = document.createElement('span');
-                                tickElement.className = 'tick';
-
-                                if (message.delivery_status === 2) {
-                                    tickContainer.innerHTML =
-                                        `<span class="tick double blue"></span>
-                                        <span class="tick double blue"></span>`;
-                                } else if (message.delivery_status === 1) {
-                                    tickContainer.innerHTML =
-                                        `<span class="tick double gray"></span>
-                                        <span class="tick double gray"></span>`;
-                                } else {
-                                    tickContainer.innerHTML = `<span class="tick single gray"></span>`;
-                                }
-
-                                messageTextElement.appendChild(tickContainer);
-
-
-                           } else {
-                                messageItem.classList.add('other-message');
-                           }
-
-                           messageItem.appendChild(senderElement);
-                           messageItem.appendChild(messageTextElement);
-                           chatMessages.appendChild(messageItem);
+                        messageItem.appendChild(senderElement);
+                        messageItem.appendChild(messageTextElement);
+                        messageItem.appendChild(timeElement);
+                        chatMessages.appendChild(messageItem);
                     }
 
                     function generateUUID() {
@@ -452,6 +466,22 @@
                         );
                     }
 
+                   function formatTimestamp(timestamp) {
+                        // Convert the UTC timestamp to a Date object
+                        const date = new Date(timestamp);
+
+                        // Format the date using `toLocaleString` in the local timezone
+                        return date.toLocaleString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            hour12: true,
+                            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone // Use local timezone
+                        });
+                    }
 
                     socket.on('connect', () => {
                         console.log('Connected to Flask-SocketIO server!');
