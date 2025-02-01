@@ -1,8 +1,9 @@
 import eventlet
+eventlet.monkey_patch()
 import pika
 
 def enqueue_message(message, queue_name='default'):
-    eventlet.sleep(10)
+    eventlet.sleep(5)
     connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
     channel = connection.channel()
 

@@ -1,5 +1,5 @@
 import json
-
+from datetime import datetime, timezone
 
 from flask_socketio import emit
 
@@ -39,10 +39,10 @@ def on_create_message(data):
             return
 
         data["action"] = 'message_received'
+        data["created"] = datetime.now(timezone.utc).isoformat()
+        emit(room_id, data, broadcast=True)
 
         socketio.start_background_task(target=enqueue_message, message=json.dumps(data), queue_name=chat_message_queue)
-
-        emit(room_id, data, broadcast=True)
 
     except Exception as e:
         emit('error', {"error": str(e)})
@@ -70,10 +70,9 @@ def on_update_delivery_status(data):
             return
 
         data["action"] = 'delivery_updated'
+        emit(room_id, data, broadcast=True)
 
         socketio.start_background_task(target=enqueue_message, message=json.dumps(data), queue_name=chat_delivery_update_queue)
-
-        emit(room_id, data, broadcast=True)
 
     except Exception as e:
         emit('error', {"error": str(e)})
