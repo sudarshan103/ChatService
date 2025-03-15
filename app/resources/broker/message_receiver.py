@@ -63,6 +63,7 @@ class RabbitMQConsumer:
         try:
             # Parse message
             message_data = json.loads(body.decode('utf-8'))
+
             logger.info(f"Processing message from {self.queue_name}: {message_data}")
 
             # Create app context for database operations
@@ -70,10 +71,14 @@ class RabbitMQConsumer:
                 # Process message using the provided handler
                 result = self.message_handler(message_data)
 
-                # If the handler returns a result, emit it via SocketIO
-                # if result:
-                #     self.socketio.emit(result['room_id'], result)
-                #     logger.info(f"Message emitted to clients: {result}")
+                if self.queue_name == chat_message_queue and result:
+                    result["action"] = 'message_received'
+                    self.socketio.emit(event=result['room_id'], data=result)
+                    logger.info(f"New chat emitted to clients: {result}")
+                # elif self.queue_name == chat_delivery_update_queue:
+                #     message_data["action"] = 'delivery_updated'
+                #     self.socketio.emit(event=message_data['room_id'], data=message_data)
+                #     logger.info(f"Delivery updates emitted to clients")
 
             return True
 

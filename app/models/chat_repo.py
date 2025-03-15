@@ -83,10 +83,11 @@ class ChatRepo:
         }
         messages = list(
             mongodb()['message'].find(query)
-            .sort("created", 1)  # Sort by created date in descending order
-            .limit(20)  # Limit to 20 documents
-        )
+            .sort("created", -1)  # Sort by created date in descending order (newest first)
+            .limit(20)  # Limit to 20 most recent documents
+        )[::-1]  # Reverse the list to get ascending order
         return messages
+
 
     @staticmethod
     def update_delivery_status(data):

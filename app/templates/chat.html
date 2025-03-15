@@ -201,7 +201,6 @@
            let roomId = null;
            let selfUuid = getCookie('uuid');
            let selfName = getCookie('name');
-           let lastDisplayedMessageId = null;
            const chatContent = document.getElementById('chatContent');
 
             const authToken = getCookie('authToken');
@@ -263,9 +262,10 @@
                     roomTitle.innerText = roomDetails.room_name;
                     sendButton.disabled = !socketConnected || roomId == null ;
 
+                    socket.off(`${roomId}`);
                     socket.on(`${roomId}`, (message) => {
-                        if(message.action == 'message_received' && lastDisplayedMessageId !== message.message_id) {
-                            lastDisplayedMessageId = message.message_id;
+                        console.log(message);
+                        if(message.action == 'message_received') {
                             displayMessage(message);
                             requestAnimationFrame(() => {
                                 chatContent.scrollTop = chatContent.scrollHeight;

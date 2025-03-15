@@ -1,4 +1,4 @@
-# SocketIO handler implementations
+
 import json
 from datetime import datetime, timezone
 from flask_socketio import emit
@@ -38,10 +38,9 @@ def on_create_message(data):
             return
 
         # Add metadata
-        data["action"] = 'message_received'
-        data["created"] = datetime.now(timezone.utc).isoformat()
-
-        emit(room_id, data, broadcast=True)
+        # data["action"] = 'message_received'
+        # data["created"] = datetime.now(timezone.utc).isoformat()
+        # emit(room_id, data, broadcast=True)
 
         socketio.start_background_task(
             target=enqueue_message,
@@ -77,7 +76,6 @@ def on_update_delivery_status(data):
 
         # Add metadata
         data["action"] = 'delivery_updated'
-
         emit(room_id, data, broadcast=True)
 
         # Only enqueue for processing, don't emit here
