@@ -38,9 +38,9 @@ def on_create_message(data):
             return
 
         # Add metadata
-        # data["action"] = 'message_received'
-        # data["created"] = datetime.now(timezone.utc).isoformat()
-        # emit(room_id, data, broadcast=True)
+        data["action"] = 'message_received'
+        data["created"] = datetime.now(timezone.utc).isoformat()
+        emit(room_id, data, broadcast=True)
 
         socketio.start_background_task(
             target=enqueue_message,
