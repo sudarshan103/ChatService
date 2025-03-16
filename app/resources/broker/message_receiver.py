@@ -1,10 +1,14 @@
+import eventlet
+
+from app.models.extensions import message_queue
+
+eventlet.monkey_patch()
 import json
 import pika
 import threading
 import time
 import logging
 from flask import current_app
-from flask_socketio import emit
 
 from app.constants import chat_message_queue, chat_delivery_update_queue
 from app.models.chat_repo import ChatRepo
@@ -71,10 +75,11 @@ class RabbitMQConsumer:
                 # Process message using the provided handler
                 result = self.message_handler(message_data)
 
-                # if self.queue_name == chat_message_queue and result:
-                #     result["action"] = 'message_received'
-                #     self.socketio.emit(event=result['room_id'], data=result)
-                #     logger.info(f"New chat emitted to clients: {result}")
+                if self.queue_name == chat_message_queue and result:
+                    result["action"] = 'message_received'
+                    message_queue.put(result)
+                    # self.socketio.start_background_task(lambda: self.socketio.emit(event=result['room_id'], data=result))
+                    # logger.info(f"New chat emitted to clients: {result}")
                 # elif self.queue_name == chat_delivery_update_queue:
                 #     message_data["action"] = 'delivery_updated'
                 #     self.socketio.emit(event=message_data['room_id'], data=message_data)
@@ -85,6 +90,7 @@ class RabbitMQConsumer:
         except Exception as e:
             logger.error(f"Message processing error: {e}")
             return False
+
 
     def message_callback(self, ch, method, properties, body):
         """Callback for received messages"""

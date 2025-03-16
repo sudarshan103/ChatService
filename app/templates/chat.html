@@ -184,6 +184,8 @@
            const socket = io('http://localhost:5001',
                                {
                                   transports: ['websocket'],
+                                   pingInterval: 25000,
+                                   pingTimeout: 60000,
                                   reconnection: true,
                                   reconnectionAttempts: 5,
                                   reconnectionDelay: 1000
@@ -264,8 +266,8 @@
 
                     socket.off(`${roomId}`);
                     socket.on(`${roomId}`, (message) => {
-                        console.log(message);
                         if(message.action == 'message_received') {
+                            console.log(message.message);
                             displayMessage(message);
                             requestAnimationFrame(() => {
                                 chatContent.scrollTop = chatContent.scrollHeight;
@@ -445,7 +447,7 @@
                     }
 
                     socket.on('connect', () => {
-                        console.log('Connected to Flask-SocketIO server!');
+                        console.log('✅ Connected to WebSocket server:', socket.id);
                         socketConnected = true;
                     });
 
@@ -460,8 +462,8 @@
                     });
 
                     // Handle disconnection
-                    socket.on('disconnect', () => {
-                        console.log('Disconnected from server');
+                   socket.on('disconnect', (reason) => {
+                        console.warn('❌ Disconnected:', reason);
                     });
 
         });

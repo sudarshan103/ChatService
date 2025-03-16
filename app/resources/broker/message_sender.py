@@ -1,5 +1,6 @@
-# import eventlet
-# eventlet.monkey_patch()
+import eventlet
+eventlet.monkey_patch()
+
 import pika
 import json
 import logging

@@ -1,12 +1,14 @@
-
+import eventlet
+eventlet.monkey_patch()
 import json
-from datetime import datetime, timezone
 from flask_socketio import emit
 from app.constants import chat_message_queue, chat_delivery_update_queue
-from app.models.extensions import socketio
+from app.models.extensions import socketio, redis_client
 from app.resources.broker.message_sender import enqueue_message
 from app.utils.utils import is_integer
+from flask import request
 
+REDIS_KEY = "connected_clients"
 
 def on_create_message(data):
     print("Received emitted message from client")
@@ -38,15 +40,11 @@ def on_create_message(data):
             return
 
         # Add metadata
-        data["action"] = 'message_received'
-        data["created"] = datetime.now(timezone.utc).isoformat()
-        emit(room_id, data, broadcast=True)
+        # data["action"] = 'message_received'
+        # data["created"] = datetime.now(timezone.utc).isoformat()
+        # emit(room_id, data, broadcast=True)
 
-        socketio.start_background_task(
-            target=enqueue_message,
-            message=json.dumps(data),
-            queue_name=chat_message_queue
-        )
+        socketio.start_background_task(lambda: enqueue_message(json.dumps(data), chat_message_queue))
 
     except Exception as e:
         emit('error', {"error": str(e)})
@@ -85,5 +83,19 @@ def on_update_delivery_status(data):
             queue_name=chat_delivery_update_queue
         )
 
+
     except Exception as e:
         emit('error', {"error": str(e)})
+
+
+def handle_connect():
+    sid = request.sid
+    redis_client.hset(REDIS_KEY, sid, "active")  # Store SID in Redis
+    active_clients = redis_client.hkeys(REDIS_KEY)  # Get active clients
+    print(f"✅ Client connected: {sid}, Active Clients: {active_clients}")
+
+def handle_disconnect():
+    sid = request.sid
+    redis_client.hdel(REDIS_KEY, sid)  # Remove client from Redis
+    active_clients = redis_client.hkeys(REDIS_KEY)
+    print(f"❌ Client disconnected: {sid}, Remaining Clients: {active_clients}")
