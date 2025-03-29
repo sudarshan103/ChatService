@@ -46,7 +46,7 @@ with app.app_context():
     socketio.on_event("update_delivery_status", on_update_delivery_status)
     socketio.on_event("connect", handle_connect)
     socketio.on_event("disconnect", handle_disconnect)
-    socketio.on_event("check_messages", check_messages)
+    # socketio.on_event("check_messages", check_messages)
     # socketio.start_background_task(message_broadcaster)
 
 if __name__ == '__main__':

@@ -2,13 +2,11 @@ import eventlet
 eventlet.monkey_patch()
 import json
 from flask_socketio import emit
-from app.constants import chat_message_queue, chat_delivery_update_queue
+from app.constants import chat_message_queue, chat_delivery_update_queue, REDIS_KEY
 from app.models.extensions import socketio, redis_client
 from app.resources.broker.message_sender import enqueue_message
 from app.utils.utils import is_integer
 from flask import request
-
-REDIS_KEY = "connected_clients"
 
 def on_create_message(data):
     print("Received emitted message from client")
@@ -40,7 +38,7 @@ def on_create_message(data):
             return
 
         # Add metadata
-        # data["action"] = 'message_received'
+        data["action"] = 'message_received'
         # data["created"] = datetime.now(timezone.utc).isoformat()
         # emit(room_id, data, broadcast=True)
 
@@ -74,7 +72,7 @@ def on_update_delivery_status(data):
 
         # Add metadata
         data["action"] = 'delivery_updated'
-        emit(room_id, data, broadcast=True)
+        # emit(room_id, data, broadcast=True)
 
         # Only enqueue for processing, don't emit here
         socketio.start_background_task(
