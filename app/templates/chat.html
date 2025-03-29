@@ -466,12 +466,6 @@
                         console.warn('❌ Disconnected:', reason);
                     });
 
-                    setInterval(() => {
-                        if(socketConnected) {
-                            socket.emit('check_messages')
-                        }
-                    }, 10000);
-
         });
 
     </script>

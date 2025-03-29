@@ -2,13 +2,11 @@ import eventlet
 eventlet.monkey_patch()
 import json
 from flask_socketio import emit
-from app.constants import chat_message_queue, chat_delivery_update_queue
+from app.constants import chat_message_queue, chat_delivery_update_queue, REDIS_KEY
 from app.models.extensions import socketio, redis_client
 from app.resources.broker.message_sender import enqueue_message
 from app.utils.utils import is_integer
 from flask import request
-
-REDIS_KEY = "connected_clients"
 
 def on_create_message(data):
     print("Received emitted message from client")
@@ -74,7 +72,7 @@ def on_update_delivery_status(data):
 
         # Add metadata
         data["action"] = 'delivery_updated'
-        emit(room_id, data, broadcast=True)
+        # emit(room_id, data, broadcast=True)
 
         # Only enqueue for processing, don't emit here
         socketio.start_background_task(
@@ -99,44 +97,3 @@ def handle_disconnect():
     redis_client.hdel(REDIS_KEY, sid)  # Remove client from Redis
     active_clients = redis_client.hkeys(REDIS_KEY)
     print(f"❌ Client disconnected: {sid}, Remaining Clients: {active_clients}")
-
-
-def check_messages():
-    """Fetch messages from Redis queue and emit them"""
-    print("📥 Received check message from client")
-    from app.run import app
-    with app.app_context():
-        try:
-            # Debug current queue length
-            queue_length = redis_client.llen(chat_message_queue)
-            print(f"Current queue length: {queue_length}")
-
-            # Get the message from Redis queue (Non-blocking)
-            queue_data = redis_client.brpop(chat_message_queue, timeout=10)
-
-            if not queue_data:
-                print("⚠️ No new messages in queue")
-                eventlet.sleep(0.1)
-                return
-
-            # Extract message
-            queue_name, message_json = queue_data  # Redis `brpop` returns (queue_name, message)
-            print(f"Retrieved message from queue: {queue_name}, message: {message_json}")
-
-            # Ensure proper decoding if message_json is bytes
-            if isinstance(message_json, bytes):
-                message_json = message_json.decode('utf-8')
-
-            result = json.loads(message_json)
-            print(f"📡 Processing message: {result}")
-
-            # Emit message to clients
-            emit(result['room_id'], result, broadcast=True)
-
-        except Exception as e:
-            print(f"⚠️ Error processing message: {e}")
-            import traceback
-            traceback.print_exc()
-
-        # Prevent CPU overuse
-        eventlet.sleep(0.1)

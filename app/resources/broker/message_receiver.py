@@ -8,7 +8,7 @@ import threading
 import time
 import logging
 
-from app.constants import chat_message_queue, chat_delivery_update_queue
+from app.constants import chat_message_queue, chat_delivery_update_queue, REDIS_KEY
 from app.models.chat_repo import ChatRepo
 
 # Configure logging
@@ -75,14 +75,23 @@ class RabbitMQConsumer:
 
                 if self.queue_name == chat_message_queue and result:
                     result["action"] = 'message_received'
-                    redis_client.lpush(chat_message_queue, json.dumps(result))
                     logger.info(f"+++++++++++++++++++++++ {self.queue_name}: {message_data}")
-                    # self.socketio.start_background_task(lambda: self.socketio.emit(event=result['room_id'], data=result))
-                    # logger.info(f"New chat emitted to clients: {result}")
-                # elif self.queue_name == chat_delivery_update_queue:
-                #     message_data["action"] = 'delivery_updated'
-                #     self.socketio.emit(event=message_data['room_id'], data=message_data)
-                #     logger.info(f"Delivery updates emitted to clients")
+
+                    connected_clients = redis_client.hkeys(REDIS_KEY)
+                    if not connected_clients:
+                        print("⚠️ No connected clients!")
+
+                    for sid in connected_clients:
+                        print(f"🔹 Sending message to {sid}")
+                        try:
+                            self.socketio.emit(result['room_id'],result, to=sid)
+                        except Exception as e:
+                            print(f"❌ Error sending to {sid}: {e}")
+
+                elif self.queue_name == chat_delivery_update_queue:
+                    message_data["action"] = 'delivery_updated'
+                    self.socketio.emit(event=message_data['room_id'], data=message_data)
+                    logger.info(f"Delivery updates emitted to clients")
 
             return True
 
