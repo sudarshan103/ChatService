@@ -79,10 +79,10 @@ class RabbitMQConsumer:
                     logger.info(f"+++++++++++++++++++++++ {self.queue_name}: {message_data}")
                     # self.socketio.start_background_task(lambda: self.socketio.emit(event=result['room_id'], data=result))
                     # logger.info(f"New chat emitted to clients: {result}")
-                # elif self.queue_name == chat_delivery_update_queue:
-                #     message_data["action"] = 'delivery_updated'
-                #     self.socketio.emit(event=message_data['room_id'], data=message_data)
-                #     logger.info(f"Delivery updates emitted to clients")
+                elif self.queue_name == chat_delivery_update_queue:
+                    message_data["action"] = 'delivery_updated'
+                    self.socketio.emit(event=message_data['room_id'], data=message_data)
+                    logger.info(f"Delivery updates emitted to clients")
 
             return True
 
