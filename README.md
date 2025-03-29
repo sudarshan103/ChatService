@@ -29,15 +29,16 @@ Ensure that you activate virtual environment & install app dependencies
 pip install -r requirement.txt
 ```
 
+##  Configure MongoDb
+Create mongo db with name as "chat". Add collections with following names
+```sh
+room
+message
+```
+
 ## Run the app
 Run the user service in a separate terminal & run chat service with following command
 ```sh
 python app/run.py
 ```
 
-##  Create the mongo data
-Create mongo db with name as "chat". Add collections with following names
-```sh
-room
-message
-```
