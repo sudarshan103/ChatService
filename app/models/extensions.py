@@ -1,5 +1,4 @@
 import json
-import queue
 
 from datetime import datetime
 import redis
@@ -8,7 +7,6 @@ from pymongo import MongoClient
 from flask import current_app, g
 
 socketio = SocketIO()
-message_queue = queue.Queue()
 redis_client = redis.StrictRedis(host='localhost', port=6379, db=0, decode_responses=True)
 
 def get_mongo_client():

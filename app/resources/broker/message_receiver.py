@@ -1,14 +1,12 @@
 import eventlet
-
-from app.models.extensions import message_queue
-
 eventlet.monkey_patch()
+from app.models.extensions import redis_client
+
 import json
 import pika
 import threading
 import time
 import logging
-from flask import current_app
 
 from app.constants import chat_message_queue, chat_delivery_update_queue
 from app.models.chat_repo import ChatRepo
@@ -68,7 +66,7 @@ class RabbitMQConsumer:
             # Parse message
             message_data = json.loads(body.decode('utf-8'))
 
-            logger.info(f"Processing message from {self.queue_name}: {message_data}")
+            # logger.info(f"Processing message from {self.queue_name}: {message_data}")
 
             # Create app context for database operations
             with self.app.app_context():
@@ -77,7 +75,8 @@ class RabbitMQConsumer:
 
                 if self.queue_name == chat_message_queue and result:
                     result["action"] = 'message_received'
-                    message_queue.put(result)
+                    redis_client.lpush(chat_message_queue, json.dumps(result))
+                    logger.info(f"+++++++++++++++++++++++ {self.queue_name}: {message_data}")
                     # self.socketio.start_background_task(lambda: self.socketio.emit(event=result['room_id'], data=result))
                     # logger.info(f"New chat emitted to clients: {result}")
                 # elif self.queue_name == chat_delivery_update_queue:
