@@ -1,6 +1,4 @@
-from flask import Blueprint, render_template, flash
-
-from app.models.chat_repo import ChatRepo
+from flask import Blueprint, render_template
 from app.resources.core.auth import verify_auth_token
 
 # Initialize the Blueprint

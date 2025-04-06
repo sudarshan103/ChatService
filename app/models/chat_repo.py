@@ -88,6 +88,37 @@ class ChatRepo:
         )[::-1]  # Reverse the list to get ascending order
         return messages
 
+    @staticmethod
+    def get_unread_messages_for_reader(room_id, reader_uuid, last_read_message_id=""):
+        query = {
+            "active": True,
+            "room_id": room_id,
+            "sender_uuid": {"$ne": reader_uuid},
+            "delivery_status_trail": {
+                "$not": {
+                    "$elemMatch": {
+                        "reader_uuid": reader_uuid
+                    }
+                }
+            }
+        }
+
+        # If last_read_message_id is provided, fetch its created timestamp
+        if last_read_message_id:
+            last_read_message = mongodb()['message'].find_one({
+                "message_id": last_read_message_id
+            })
+            if last_read_message:
+                created_after = last_read_message.get("created")
+                if created_after:
+                    query["created"] = {"$gt": created_after}
+
+        # Fetch matching messages
+        messages = list(
+            mongodb()['message'].find(query)
+            .sort("created", 1)  # ascending order by time
+        )
+        return messages
 
     @staticmethod
     def update_delivery_status(data):

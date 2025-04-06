@@ -6,7 +6,6 @@ from app.constants import chat_message_queue, chat_delivery_update_queue, REDIS_
 from app.models.extensions import socketio, redis_client
 from app.resources.broker.message_sender import enqueue_message
 from app.utils.utils import is_integer
-from flask import request
 
 def on_create_message(data):
     print("Received emitted message from client")
@@ -72,28 +71,7 @@ def on_update_delivery_status(data):
 
         # Add metadata
         data["action"] = 'delivery_updated'
-        # emit(room_id, data, broadcast=True)
-
-        # Only enqueue for processing, don't emit here
-        socketio.start_background_task(
-            target=enqueue_message,
-            message=data,
-            queue_name=chat_delivery_update_queue
-        )
-
+        emit(room_id, data, broadcast=True)
 
     except Exception as e:
         emit('error', {"error": str(e)})
-
-
-def handle_connect():
-    sid = request.sid
-    redis_client.hset(REDIS_KEY, sid, "active")  # Store SID in Redis
-    active_clients = redis_client.hkeys(REDIS_KEY)  # Get active clients
-    print(f"✅ Client connected: {sid}, Active Clients: {active_clients}")
-
-def handle_disconnect():
-    sid = request.sid
-    redis_client.hdel(REDIS_KEY, sid)  # Remove client from Redis
-    active_clients = redis_client.hkeys(REDIS_KEY)
-    print(f"❌ Client disconnected: {sid}, Remaining Clients: {active_clients}")

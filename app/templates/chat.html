@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -17,8 +18,10 @@
         }
 
         /* Header */
-        h1, h2 {
-            color: black; /* Change color to black */
+        h1,
+        h2 {
+            color: black;
+            /* Change color to black */
             text-align: center;
             margin: 10px 0;
         }
@@ -41,7 +44,8 @@
             padding: 20px;
             overflow-y: auto;
             border-right: 2px solid #ddd;
-            flex-shrink: 0;  /* Prevents shrinking */
+            flex-shrink: 0;
+            /* Prevents shrinking */
         }
 
         #contactsList {
@@ -59,29 +63,35 @@
             transition: background-color 0.3s;
         }
 
-        .contact:hover, .selected-contact {
+        .contact:hover,
+        .selected-contact {
             background-color: #e0f7e9;
         }
 
         /* Chat container styling */
         #chatContainer {
-            flex-grow: 1; /* Ensures chatContainer takes the full remaining height */
+            flex-grow: 1;
+            /* Ensures chatContainer takes the full remaining height */
             display: flex;
             flex-direction: column;
             background-color: #f4f7f6;
             padding: 20px;
-            position: relative; /* Ensures positioning of inputContainer */
+            position: relative;
+            /* Ensures positioning of inputContainer */
         }
 
         #chatContent {
             display: flex;
-            flex-direction: column; /* Top to bottom order for messages */
+            flex-direction: column;
+            /* Top to bottom order for messages */
             flex-grow: 1;
             padding: 15px;
             background-color: #fff;
             border-radius: 5px;
-            overflow-y: auto; /* Make chatContent scrollable */
-            max-height: calc(100vh - 160px); /* Make space for inputContainer */
+            overflow-y: auto;
+            /* Make chatContent scrollable */
+            max-height: calc(100vh - 160px);
+            /* Make space for inputContainer */
             box-sizing: border-box;
         }
 
@@ -92,105 +102,113 @@
             border-radius: 5px;
             position: relative;
             display: flex;
-            flex-direction: column;  /* Stack sender and message text vertically */
+            flex-direction: column;
+            /* Stack sender and message text vertically */
             min-width: 100px;
-            max-width: 70%; /* Optional: limits the message width for better readability */
+            max-width: 70%;
+            /* Optional: limits the message width for better readability */
         }
 
         /* Own message style (aligned to the right) */
         .own-message {
             background-color: #d0f7d6;
-            align-self: flex-end;  /* Align the entire message container to the right */
+            align-self: flex-end;
+            /* Align the entire message container to the right */
             margin-left: auto;
         }
 
         /* Other message style (aligned to the left) */
         .other-message {
             background-color: #f1f1f1;
-            align-self: flex-start;  /* Align the entire message container to the left */
+            align-self: flex-start;
+            /* Align the entire message container to the left */
         }
 
         /* Sender and message text styling */
         .sender {
             font-weight: bold;
             color: #4CAF50;
-            margin-bottom: 5px;  /* Space between sender and message */
+            margin-bottom: 5px;
+            /* Space between sender and message */
         }
 
         .message-text {
             word-wrap: break-word;
-            white-space: pre-wrap; /* Preserve line breaks in the message */
+            white-space: pre-wrap;
+            /* Preserve line breaks in the message */
         }
 
         /* Tick container */
-    .tick-container {
-        display: flex;
-        justify-content: flex-end;
-        align-items: center;
-        margin-top: 5px;
-        margin-left: auto;
-    }
+        .tick-container {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            margin-top: 5px;
+            margin-left: auto;
+        }
 
-    .tick-icon {
-        display: inline-block;
-        vertical-align: middle;
-    }
+        .tick-icon {
+            display: inline-block;
+            vertical-align: middle;
+        }
 
-    #inputContainer {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 10px;
-        background-color: #fff;
-        border-top: 1px solid #ddd;
-        width: 100%;
-        position: sticky; /* Ensures inputContainer stays at the bottom */
-        bottom: 0;
-        box-sizing: border-box;
-        z-index: 1; /* Ensure input container is above chat content */
-    }
+        #inputContainer {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+            background-color: #fff;
+            border-top: 1px solid #ddd;
+            width: 100%;
+            position: sticky;
+            /* Ensures inputContainer stays at the bottom */
+            bottom: 0;
+            box-sizing: border-box;
+            z-index: 1;
+            /* Ensure input container is above chat content */
+        }
 
-    #messageInput {
-        flex-grow: 1;
-        padding: 10px;
-        border-radius: 5px;
-        border: 1px solid #ddd;
-    }
+        #messageInput {
+            flex-grow: 1;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
 
-    #sendButton {
-        padding: 10px 20px;
-        margin-left: 10px;
-        background-color: #4CAF50;
-        color: white;
-        border: none;
-        border-radius: 5px;
-        cursor: pointer;
-    }
+        #sendButton {
+            padding: 10px 20px;
+            margin-left: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
 
-    #sendButton:hover {
-        background-color: #45a049;
-    }
+        #sendButton:hover {
+            background-color: #45a049;
+        }
 
-    #sendButton:disabled {
-        background-color: #ccc;
-        cursor: not-allowed;
-    }
+        #sendButton:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
     </style>
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
 
 
-           const socket = io('http://localhost:5001',
-                               {
-                                  transports: ['websocket'],
-                                   pingInterval: 25000,
-                                   pingTimeout: 60000,
-                                  reconnection: true,
-                                  reconnectionAttempts: 5,
-                                  reconnectionDelay: 1000
-                                }
-                              );
+            const socket = io('http://localhost:5001',
+                {
+                    transports: ['websocket'],
+                    pingInterval: 25000,
+                    pingTimeout: 60000,
+                    reconnection: true,
+                    reconnectionAttempts: 5,
+                    reconnectionDelay: 1000
+                }
+            );
 
 
             const getCookie = (name) => {
@@ -199,11 +217,13 @@
                 if (parts.length === 2) return parts.pop().split(';').shift();
             };
 
-           let socketConnected = false;
-           let roomId = null;
-           let selfUuid = getCookie('uuid');
-           let selfName = getCookie('name');
-           const chatContent = document.getElementById('chatContent');
+            let socketConnected = false;
+            let roomId = null;
+            let lastReadMsgId = "";
+            let selfUuid = getCookie('uuid');
+            let selfName = getCookie('name');
+            const chatContent = document.getElementById('chatContent');
+            let messagePoller = null;
 
             const authToken = getCookie('authToken');
             if (!authToken) {
@@ -216,32 +236,36 @@
             fetch('http://127.0.0.1:5000/user', {
                 headers: { 'Authorization': `Bearer ${authToken}` }
             })
-            .then(response => {
-                if (response.status === 401) {
-                    document.cookie = 'authToken=;Max-Age=0;path=/;';
-                    window.location.href = 'http://127.0.0.1:5000';
-                    return;
-                }
-                return response.json();
-            })
-            .then(data => {
-                const contactsList = document.getElementById('contactsList');
-                data.forEach(contact => {
-                    const contactItem = document.createElement('div');
-                    contactItem.className = 'contact';
-                    const fullName = contact.last_name ? `${contact.first_name} ${contact.last_name}` : contact.first_name;
-                    contactItem.innerHTML = `<strong>${fullName}</strong>`;
-                    contactItem.addEventListener('click', () => loadChat(contact.uuid, fullName, contactItem));
-                    contactsList.appendChild(contactItem);
-                });
-            })
-            .catch(error => console.error('Error:', error));
+                .then(response => {
+                    if (response.status === 401) {
+                        document.cookie = 'authToken=;Max-Age=0;path=/;';
+                        window.location.href = 'http://127.0.0.1:5000';
+                        return;
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    const contactsList = document.getElementById('contactsList');
+                    data.forEach(contact => {
+                        const contactItem = document.createElement('div');
+                        contactItem.className = 'contact';
+                        const fullName = contact.last_name ? `${contact.first_name} ${contact.last_name}` : contact.first_name;
+                        contactItem.innerHTML = `<strong>${fullName}</strong>`;
+                        contactItem.addEventListener('click', () => loadChat(contact.uuid, fullName, contactItem));
+                        contactsList.appendChild(contactItem);
+                    });
+                })
+                .catch(error => console.error('Error:', error));
 
             const loadChat = (targetUuid, targetName, contactElement) => {
+                lastReadMsgId = "";
                 sendButton.disabled = true;
                 const authToken = getCookie('authToken');
                 const chatMessages = document.getElementById('chatMessages');
                 const roomTitle = document.getElementById('roomTitle');
+                if (messagePoller) {
+                    clearInterval(messagePoller);
+                }
 
                 // Clear the previous messages when a new contact is selected
                 chatMessages.innerHTML = '';
@@ -258,239 +282,314 @@
                 fetch(`http://127.0.0.1:5001/room/by-participants?uuid=${targetUuid}&name=${targetName}`, {
                     headers: { 'Authorization': `Bearer ${authToken}` }
                 })
-                .then(response => response.json())
-                .then(roomDetails => {
-                    roomId = roomDetails.room_id;
-                    roomTitle.innerText = roomDetails.room_name;
-                    sendButton.disabled = !socketConnected || roomId == null ;
+                    .then(response => response.json())
+                    .then(roomDetails => {
+                        roomId = roomDetails.room_id;
+                        roomTitle.innerText = roomDetails.room_name;
+                        sendButton.disabled = !socketConnected || roomId == null;
+                        listenSocket();
+                        return fetch(`http://127.0.0.1:5001/room/messages?room_id=${roomId}`, {
+                            headers: { 'Authorization': `Bearer ${authToken}` }
+                        });
+                    })
+                    .then(response => response.json())
+                    .then(messages => {
+                        onReceiveNewMessages(messages);
+                        messagePoller = setInterval(() => {
+                            fetchUnreadMessages();
+                        }, 10000);
+                    })
+                    .catch(error => console.error('Error:', error));
+            };
 
-                    socket.off(`${roomId}`);
-                    socket.on(`${roomId}`, (message) => {
-                        if(message.action == 'message_received') {
-                            console.log(message.message);
-                            displayMessage(message);
-                            requestAnimationFrame(() => {
-                                chatContent.scrollTop = chatContent.scrollHeight;
-                            });
-                            if(message.sender_uuid !== selfUuid) {
-                                let payload = {
-                                    room_id: roomId,
-                                    reader_uuid:selfUuid,
-                                    message_ids: [message.message_id],
-                                    delivery_status: 2
-                                };
-                                socket.emit('update_delivery_status', payload);
-                            }
+            // Send message functionality
+            const sendButton = document.getElementById('sendButton');
+            const messageInput = document.getElementById('messageInput');
 
-                        }else if(message.action == 'delivery_updated' && message.reader_uuid !== selfUuid) {
-                            message.message_ids.forEach((messageId) => {
-                                    const messageElement = document.getElementById(`message-${messageId}`);
-                                    if (messageElement) {
-                                        const tickContainer = messageElement.querySelector('.tick-container');
-                                          if (message.delivery_status === 2) {
-                                            tickContainer.innerHTML = `
+
+            sendButton.addEventListener('click', () => {
+                const messageContent = messageInput.value.trim();
+                if (messageContent !== '') {
+                    const messageData = {
+                        message_id: generateUUID(),
+                        room_id: roomId,
+                        message: messageContent,
+                        sender_uuid: selfUuid,
+                        sender_name: selfName
+                    };
+                    sendMessage(messageData);
+                    document.getElementById('messageInput').value = '';
+                }
+            });
+
+            function listenSocket() {
+                socket.off(`${roomId}`);
+                socket.on(`${roomId}`, (message) => {
+                    if (message.action == 'delivery_updated' && message.reader_uuid !== selfUuid) {
+                        message.message_ids.forEach((messageId) => {
+                            const messageElement = document.getElementById(`message-${messageId}`);
+                            if (messageElement) {
+                                const tickContainer = messageElement.querySelector('.tick-container');
+                                if (message.delivery_status === 2) {
+                                    tickContainer.innerHTML = `
                                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="14" viewBox="0 0 28 24" fill="none" stroke="#2196F3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="tick-icon">
                                                     <path d="M18 8L7 19l-5-5"></path>
                                                     <path d="M24 6L13 17l-5-5"></path>
                                                 </svg>
                                             `;
-                                        } else if (message.delivery_status === 1) {
-                                            tickContainer.innerHTML = `
+                                } else if (message.delivery_status === 1) {
+                                    tickContainer.innerHTML = `
                                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="14" viewBox="0 0 28 24" fill="none" stroke="#B0BEC5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="tick-icon">
                                                     <path d="M18 8L7 19l-5-5"></path>
                                                     <path d="M24 6L13 17l-5-5"></path>
                                                 </svg>
                                             `;
-                                        } else {
-                                            tickContainer.innerHTML = `
+                                } else {
+                                    tickContainer.innerHTML = `
                                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#B0BEC5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="tick-icon">
                                                     <path d="M20 6L9 17l-5-5"></path>
                                                 </svg>
                                             `;
-                                        }
-                                    }
-                            });
-                        }
-                    });
-
-                    // Fetch messages from the server
-                    return fetch(`http://127.0.0.1:5001/room/messages?room_id=${roomId}`, {
-                        headers: { 'Authorization': `Bearer ${authToken}` }
-                    });
-                })
-                .then(response => response.json())
-                .then(messages => {
-                    let newMessageIds = [];
-                    if (messages.length > 0) {
-                        messages.forEach(message => {
-                           if (message.delivery_status < 2 && message.sender_uuid !== selfUuid) {
-                                 newMessageIds.push(message.message_id);
+                                }
                             }
-                           displayMessage(message);
                         });
                     }
-                    requestAnimationFrame(() => {
-                         chatContent.scrollTop = chatContent.scrollHeight;
-                    });
+                });
 
-                    if (newMessageIds.length > 0) {
-                        const payload = {
-                            room_id: roomId,
-                            reader_uuid:selfUuid,
-                            message_ids: newMessageIds,
-                            delivery_status: 2
-                        };
-                        socket.emit('update_delivery_status', payload);
-                    }
+            }
 
+            function sendMessage(messageData) {
+                fetch('http://127.0.0.1:5001/message', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify(messageData)
                 })
-                .catch(error => console.error('Error:', error));
-            };
-               // Send message functionality
-                    const sendButton = document.getElementById('sendButton');
-                    const messageInput = document.getElementById('messageInput');
-
-                    sendButton.addEventListener('click', () => {
-                        const messageContent = messageInput.value.trim();
-                        if (messageContent !== '') {
-                            socket.emit('create_message', {
-                                message_id: generateUUID(),
-                                room_id: roomId,
-                                message: messageContent,
-                                sender_uuid: selfUuid,
-                                sender_name: selfName
+                    .then(response => {
+                        if (response.status === 200) {
+                            return response.json().then(data => {
+                                onReceiveNewMessages([data]);
                             });
-                            document.getElementById('messageInput').value = '';
+                        } else {
+                            console.error('Failed to send message. Status:', response.status);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error sending message:', error);
+                    });
+            }
+
+            function acknowledgeMessages(payload) {
+                fetch('http://127.0.0.1:5001/message/status', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify(payload)
+                })
+                    .then(response => {
+                        if (response.status === 200) {
+                            socket.emit('update_delivery_status', payload);
+
+                        } else {
+                            console.error('Failed to send message status. Status:', response.status);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error sending message status:', error);
+                    });
+            }
+
+
+            async function fetchUnreadMessages() {
+                const url = new URL('http://127.0.0.1:5001/room/unread-messages');
+                url.searchParams.append('room_id', roomId);
+                url.searchParams.append('reader_uuid', selfUuid);
+                url.searchParams.append('last_read_message_id', lastReadMsgId);
+
+                try {
+                    const response = await fetch(url.toString(), {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${authToken}`,
+                            'Content-Type': 'application/json'
                         }
                     });
 
-                    function displayMessage(message) {
-                        const chatMessages = document.getElementById('chatMessages');
-                        const messageItem = document.createElement('div');
-                        messageItem.className = 'message';
-                        messageItem.id = `message-${message.message_id}`;
+                    if (!response.ok) {
+                        const error = await response.json();
+                        console.error('API error:', error.message);
+                        return;
+                    }
 
-                        const senderElement = document.createElement('span');
-                        senderElement.className = 'sender';
-                        senderElement.innerText = message.sender_name;
+                    const text = await response.text();
+                    const messages = JSON.parse(text);
+                    onReceiveNewMessages(messages);
 
-                        const messageTextElement = document.createElement('div');
-                        messageTextElement.className = 'message-text';
-                        messageTextElement.innerText = message.message;
+                } catch (error) {
+                    console.error('Fetch error:', error);
+                }
+            }
 
-                        const timeElement = document.createElement('span');
-                        timeElement.className = 'time';
-                        timeElement.innerText = formatTimestamp(message.created); // Format the timestamp
-                        timeElement.style.fontSize = '12px'; // Smaller font size
-                        timeElement.style.color = '#888'; // Optional: Light gray color
-                        timeElement.style.marginTop = '5px'; // Small gap from the message text
-                        timeElement.style.alignSelf = 'flex-end'; // Align to the bottom right for right-aligned messages
+            function onReceiveNewMessages(messages) {
+                let newMessageIds = [];
+                if (messages.length > 0) {
+                    messages.forEach(message => {
+                        if (message.delivery_status < 2 && message.sender_uuid !== selfUuid) {
+                            newMessageIds.push(message.message_id);
+                        }
+                        displayMessage(message);
+                    });
+                }
+                requestAnimationFrame(() => {
+                    chatContent.scrollTop = chatContent.scrollHeight;
+                });
 
-                        const tickContainer = document.createElement('div');
-                        tickContainer.className = 'tick-container';
+                if (newMessageIds.length > 0) {
+                    const payload = {
+                        room_id: roomId,
+                        reader_uuid: selfUuid,
+                        message_ids: newMessageIds,
+                        delivery_status: 2
+                    };
+                    acknowledgeMessages(payload);
+                }
+            }
 
-                        if (message.sender_uuid === selfUuid) {
-                            messageItem.classList.add('own-message');
-                            if (message.delivery_status === 2) {
-                                tickContainer.innerHTML = `
+
+            function displayMessage(message) {
+                const chatMessages = document.getElementById('chatMessages');
+                const messageItem = document.createElement('div');
+                messageItem.className = 'message';
+                messageItem.id = `message-${message.message_id}`;
+
+                const senderElement = document.createElement('span');
+                senderElement.className = 'sender';
+                senderElement.innerText = message.sender_name;
+
+                const messageTextElement = document.createElement('div');
+                messageTextElement.className = 'message-text';
+                messageTextElement.innerText = message.message;
+
+                const timeElement = document.createElement('span');
+                timeElement.className = 'time';
+                timeElement.innerText = formatTimestamp(message.created); // Format the timestamp
+                timeElement.style.fontSize = '12px'; // Smaller font size
+                timeElement.style.color = '#888'; // Optional: Light gray color
+                timeElement.style.marginTop = '5px'; // Small gap from the message text
+                timeElement.style.alignSelf = 'flex-end'; // Align to the bottom right for right-aligned messages
+
+                const tickContainer = document.createElement('div');
+                tickContainer.className = 'tick-container';
+
+                if (message.sender_uuid === selfUuid) {
+                    messageItem.classList.add('own-message');
+                    if (message.delivery_status === 2) {
+                        tickContainer.innerHTML = `
                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="14" viewBox="0 0 28 24" fill="none" stroke="#2196F3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="tick-icon">
                                         <path d="M18 8L7 19l-5-5"></path>
                                         <path d="M24 6L13 17l-5-5"></path>
                                     </svg>
                                 `;
-                            } else if (message.delivery_status === 1) {
-                                tickContainer.innerHTML = `
+                    } else if (message.delivery_status === 1) {
+                        tickContainer.innerHTML = `
                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="14" viewBox="0 0 28 24" fill="none" stroke="#B0BEC5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="tick-icon">
                                         <path d="M18 8L7 19l-5-5"></path>
                                         <path d="M24 6L13 17l-5-5"></path>
                                     </svg>
                                 `;
-                            } else {
-                                tickContainer.innerHTML = `
+                    } else {
+                        tickContainer.innerHTML = `
                                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#B0BEC5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="tick-icon">
                                         <path d="M20 6L9 17l-5-5"></path>
                                     </svg>
                                 `;
-                            }
-                            messageTextElement.appendChild(tickContainer);
-                        } else {
-                            messageItem.classList.add('other-message');
-                        }
-
-                        messageItem.appendChild(senderElement);
-                        messageItem.appendChild(messageTextElement);
-                        messageItem.appendChild(timeElement);
-                        chatMessages.appendChild(messageItem);
                     }
+                    messageTextElement.appendChild(tickContainer);
+                } else {
+                    lastReadMsgId = message.message_id;
+                    messageItem.classList.add('other-message');
+                }
 
-                    function generateUUID() {
-                        return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c =>
-                            (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
-                        );
-                    }
+                messageItem.appendChild(senderElement);
+                messageItem.appendChild(messageTextElement);
+                messageItem.appendChild(timeElement);
+                chatMessages.appendChild(messageItem);
+            }
 
-                   function formatTimestamp(timestamp) {
-                        // Convert the UTC timestamp to a Date object
-                        const date = new Date(timestamp);
+            function generateUUID() {
+                return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c =>
+                    (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+                );
+            }
 
-                        // Format the date using `toLocaleString` in the local timezone
-                        return date.toLocaleString('en-US', {
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            second: '2-digit',
-                            hour12: true,
-                            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone // Use local timezone
-                        });
-                    }
+            function formatTimestamp(timestamp) {
+                // Convert the UTC timestamp to a Date object
+                const date = new Date(timestamp);
 
-                    socket.on('connect', () => {
-                        console.log('✅ Connected to WebSocket server:', socket.id);
-                        socketConnected = true;
-                    });
+                // Format the date using `toLocaleString` in the local timezone
+                return date.toLocaleString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: true,
+                    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone // Use local timezone
+                });
+            }
 
-                    // Listen for the 'create_message' event and print it
-                    socket.on('error', (data) => {
-                        console.log('Received error event:', data);
-                    });
+            socket.on('connect', () => {
+                console.log('✅ Connected to WebSocket server:', socket.id);
+                socketConnected = true;
+            });
 
-                    // Handle any error in connection
-                    socket.on('connect_error', (error) => {
-                        console.log('Connection failed:', error);
-                    });
+            // Listen for the 'create_message' event and print it
+            socket.on('error', (data) => {
+                console.log('Received error event:', data);
+            });
 
-                    // Handle disconnection
-                   socket.on('disconnect', (reason) => {
-                        console.warn('❌ Disconnected:', reason);
-                    });
+            // Handle any error in connection
+            socket.on('connect_error', (error) => {
+                console.log('Connection failed:', error);
+            });
+
+            // Handle disconnection
+            socket.on('disconnect', (reason) => {
+                console.warn('❌ Disconnected:', reason);
+            });
 
         });
 
     </script>
 </head>
+
 <body>
-<h2 id="heading">Welcome to the Chat</h2>
+    <h2 id="heading">Welcome to the Chat</h2>
 
-<div id="mainContainer">
-    <!-- Contacts List -->
-    <div id="contactsListContainer">
-        <h1>Colleagues</h1>
-        <div id="contactsList"></div>
-    </div>
+    <div id="mainContainer">
+        <!-- Contacts List -->
+        <div id="contactsListContainer">
+            <h1>Colleagues</h1>
+            <div id="contactsList"></div>
+        </div>
 
-    <!-- Chat Container -->
-    <div id="chatContainer">
-        <div id="chatContent">
-            <h1 id="roomTitle">Chat</h1>
-            <div id="chatMessages"></div>
-        </div>
-        <div id="inputContainer">
-            <input id="messageInput" type="text" placeholder="Type a message"/>
-            <button id="sendButton">Send</button>
+        <!-- Chat Container -->
+        <div id="chatContainer">
+            <div id="chatContent">
+                <h1 id="roomTitle">Chat</h1>
+                <div id="chatMessages"></div>
+            </div>
+            <div id="inputContainer">
+                <input id="messageInput" type="text" placeholder="Type a message" />
+                <button id="sendButton">Send</button>
+            </div>
         </div>
     </div>
-</div>
 </body>
+
 </html>
