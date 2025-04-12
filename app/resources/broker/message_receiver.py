@@ -1,6 +1,5 @@
 import eventlet
 eventlet.monkey_patch()
-from app.models.extensions import redis_client
 
 import json
 import pika
@@ -147,7 +146,7 @@ def init_broker_message_listener(socketio, app):
     consumer_configs = [
         {
             'queue_name': chat_message_queue,
-            'handler': lambda data: ChatRepo.receive_create_message_command(data)
+            'handler': lambda data: ChatRepo.process_new_message(data)
         },
         {
             'queue_name': chat_delivery_update_queue,

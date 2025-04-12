@@ -2,22 +2,10 @@ import uuid
 from datetime import datetime, timezone
 
 from app.models.extensions import mongodb
+from app.resources.bookslot.appointments_function_calling import handle_user_input
 
 
 class ChatRepo:
-
-    @staticmethod
-    def receive_create_message_command(data):
-        sender_uuid = data.get('sender_uuid')
-        sender_name = data.get('sender_name')
-        message_text = data.get('message')
-        room_id = data.get('room_id')
-        message_id = data.get('message_id')
-
-        # Create the message
-        message = ChatRepo.create_message(room_id, sender_uuid, sender_name, message_id, message_text)
-        del message["_id"]
-        return message
 
     @staticmethod
     def create_room(room_mates):
@@ -59,20 +47,32 @@ class ChatRepo:
         return room_details
 
     @staticmethod
-    def create_message(room_id, sender_uuid, sender_name, message_id, message_text):
+    def process_new_message(data):
+        ChatRepo.create_message(data)
+        if data.get('is_chatting_to_admin'):
+            bot_response = handle_user_input(data.get('room_id'), data.get('message'))
+            data['message_id'] = str(uuid.uuid4())
+            data['message'] = bot_response
+            data['sender_uuid'] = data.get('target_uuid')
+            data['sender_name'] = data.get('target_name')
+            ChatRepo.create_message(data)
+
+    @staticmethod
+    def create_message(data):
         message = {
-            "message_id": message_id,
-            "room_id": room_id,
+            "message_id": data.get('message_id'),
+            "room_id": data.get('room_id'),
             "created": datetime.now(timezone.utc).isoformat(),
             "updated": datetime.now(timezone.utc).isoformat(),
-            "sender_uuid": sender_uuid,
-            "sender_name": sender_name,
-            "message": message_text,
+            "sender_uuid": data.get('sender_uuid'),
+            "sender_name": data.get('sender_name'),
+            "message": data.get('message'),
             "delivery_status": 0,
             "delivery_status_trail": [],
             "active": True
         }
         mongodb()['message'].insert_one(message)
+        del message["_id"]
         return message
 
     @staticmethod

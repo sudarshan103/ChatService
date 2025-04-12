@@ -218,8 +218,11 @@
             };
 
             let socketConnected = false;
+            let isChattingToAdmin = false;
             let roomId = null;
             let lastReadMsgId = "";
+            let targetId = "";
+            let targetReceiverName = "";
             let selfUuid = getCookie('uuid');
             let selfName = getCookie('name');
             const chatContent = document.getElementById('chatContent');
@@ -251,13 +254,16 @@
                         contactItem.className = 'contact';
                         const fullName = contact.last_name ? `${contact.first_name} ${contact.last_name}` : contact.first_name;
                         contactItem.innerHTML = `<strong>${fullName}</strong>`;
-                        contactItem.addEventListener('click', () => loadChat(contact.uuid, fullName, contactItem));
+                        contactItem.addEventListener('click', () => loadChat(contact.uuid, fullName, contactItem, contact.is_admin));
                         contactsList.appendChild(contactItem);
                     });
                 })
                 .catch(error => console.error('Error:', error));
 
-            const loadChat = (targetUuid, targetName, contactElement) => {
+            const loadChat = (targetUuid, targetName, contactElement, isTargetAdmin) => {
+                isChattingToAdmin = isTargetAdmin;
+                targetId = targetUuid;
+                targetReceiverName = targetName;
                 lastReadMsgId = "";
                 sendButton.disabled = true;
                 const authToken = getCookie('authToken');
@@ -315,7 +321,10 @@
                         room_id: roomId,
                         message: messageContent,
                         sender_uuid: selfUuid,
-                        sender_name: selfName
+                        sender_name: selfName,
+                        is_chatting_to_admin: isChattingToAdmin,
+                        target_uuid: targetId,
+                        target_name: targetReceiverName
                     };
                     sendMessage(messageData);
                     document.getElementById('messageInput').value = '';
