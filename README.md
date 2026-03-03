@@ -2,7 +2,6 @@
 
 ## Pre-requisites
 - Python
-- Redis
 
 ## Environment Configuration
 Set the following environment variables before running the project:

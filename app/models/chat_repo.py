@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from app.models.extensions import mongodb
 from app.resources.bookslot.appointments_function_calling import handle_user_input
+from config import Config
 
 
 class ChatRepo:
@@ -84,7 +85,7 @@ class ChatRepo:
         messages = list(
             mongodb()['message'].find(query)
             .sort("created", -1)  # Sort by created date in descending order (newest first)
-            .limit(20)  # Limit to 20 most recent documents
+            .limit(Config.CHAT_CONTEXT_LIMIT)  # Limit configurable via CHAT_CONTEXT_LIMIT env variable
         )[::-1]  # Reverse the list to get ascending order
         return messages
 

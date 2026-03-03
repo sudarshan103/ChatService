@@ -1,13 +1,20 @@
 import json
+import os
+import mysql.connector
 
 from datetime import datetime
-import redis
 from flask_socketio import SocketIO
 from pymongo import MongoClient
 from flask import current_app, g
 
 socketio = SocketIO()
-redis_client = redis.StrictRedis(host='localhost', port=6379, db=0, decode_responses=True)
+
+db = mysql.connector.connect(
+    host="localhost",
+    user=os.getenv('MYSQL_USERNAME'),
+    password=os.getenv('MYSQL_PASSWORD'),
+    database="appointments"
+)
 
 def get_mongo_client():
     if 'mongo_client' not in g:

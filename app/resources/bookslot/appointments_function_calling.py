@@ -1,10 +1,15 @@
-from app.models.extensions import redis_client
-from app.resources.bookslot.appointment_utils import db, trim_messages
-from app.resources.core.openai_utils import get_completion_with_function_calling
+from langchain.agents import Tool, AgentExecutor, create_openai_functions_agent
+from langchain_openai import ChatOpenAI
+from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain.schema import HumanMessage, AIMessage
+from datetime import datetime, timezone
 import json
+import os
+
+from app.models.extensions import db
 
 prompt = f"""
-You are an assistant working in year 2025, helping a user to book an appointment with a service provider at date and time as per the provider's availability.
+You are an assistant, helping a user to book an appointment with a service provider at date and time as per the provider's availability.
 While displaying provider, consider him as a Doctor in this use case & do not display him as a 'provider'.
 Follow these rules:
 - Make sure the user provides the provider name and future date both as a basic input to process further.
@@ -19,7 +24,7 @@ Follow these rules:
 - If the user asks for alternative slots, immediately get the available slot by provider id, without date filter, fetch all available slots, and display them in a numbered format.
 - If the user provides a new date or time, process that input instead of fetching all slots.
 - If provider is available, confirm appointment before finalizing.
-- If provider is not available, get the available slot by provider id, without date filter, show all the available time slots as per the function response.
+- If the user provides a specific date and there are no available slots for that provider on that date, explicitly inform the user that the Doctor is not available on the requested date.Do NOT display slots from other dates.Ask the user whether they would like to see the nearest available dates.Only fetch and display slots without date filter if the user confirms they want alternative dates, otherwise exit the conversation by saying ok.
 - While showing the time slots, show the dates in format '13 Jan 2025, 01:00pm' with the time in 12 hour format, skip the seconds part.
 - While showing the time slots, skip dates part when the date input was provided and corresponding slots were available.
 - If the user selects a time from the available options, proceed with booking instead of checking availability again.
@@ -157,49 +162,91 @@ functions=[
 
         ]
 
-def get_conversation(room_id):
-    convo_json = redis_client.get(f"chat:{room_id}")
-    if convo_json:
-        return json.loads(convo_json)
-    else:
-        return [{'role': 'system', 'content': prompt}]
+# Initialize LangChain components (one-time setup)
+def _initialize_agent():
+    """Initialize LangChain agent and related components."""
+    tools = [
+        Tool(
+            name="get_matching_provider_names",
+            func=get_matching_provider_names,
+            description="Fetch available doctor names to match the one being queried by user. Takes doctor's name as input."
+        ),
+        Tool(
+            name="get_available_slots",
+            func=lambda provider_id, date=None: get_available_slots(int(provider_id), date),
+            description="Fetch available time slots for a doctor. Takes provider_id (integer) and optional date (YYYY-MM-DD) as inputs."
+        ),
+        Tool(
+            name="check_availability",
+            func=lambda provider_id, date, time: check_availability(int(provider_id), date, time),
+            description="Check if a doctor is available at a specific date and time. Takes provider_id (integer), date (YYYY-MM-DD), and time (HH:MM:SS) as inputs."
+        ),
+    ]
 
-def save_conversation(room_id, conversation):
-    redis_client.set(f"chat:{room_id}", json.dumps(conversation))
+    llm = ChatOpenAI(
+        model="gpt-3.5-turbo",
+        temperature=0
+    )
+
+    prompt_template = ChatPromptTemplate.from_messages([
+        ("system", prompt),
+        MessagesPlaceholder(variable_name="chat_history"),
+        ("human", "{input}"),
+        MessagesPlaceholder(variable_name="agent_scratchpad"),
+    ])
+
+    agent = create_openai_functions_agent(llm, tools, prompt_template)
+    agent_executor = AgentExecutor(
+        agent=agent,
+        tools=tools,
+        verbose=True,
+        max_iterations=10
+    )
+
+    return agent_executor, tools
+
+_agent_executor = None
+_tools = None
+
+
+def _get_agent_executor():
+    global _agent_executor, _tools
+    if _agent_executor is None:
+        _agent_executor, _tools = _initialize_agent()
+    return _agent_executor
+
+def _get_chat_history_from_repo(room_id):
+    """Fetch chat history using existing ChatRepo's get_recent_messages."""
+    from app.models.chat_repo import ChatRepo
+    
+    messages = ChatRepo.get_recent_messages(room_id)
+    
+    # Convert to LangChain message format
+    chat_history = []
+    for msg in messages:
+        content = msg.get('message', '')
+        # Convert all messages to HumanMessage for now
+        # Adjust this logic based on how you identify bot vs user messages
+        chat_history.append(HumanMessage(content=content))
+    
+    return chat_history
 
 def handle_user_input(room_id, user_input):
-    conversation = get_conversation(room_id)
-    conversation.append({'role': 'user', 'content': user_input})
+    """Handle user input using LangChain agent with ChatRepo conversation history."""
+    agent_executor = _get_agent_executor()
 
-    while True:
-        conversation = trim_messages(conversation)
-        bot_response = get_completion_with_function_calling(conversation, functions)
+    # Get chat history from ChatRepo
+    chat_history = _get_chat_history_from_repo(room_id)
+    
+    # Run agent with current conversation history
+    result = agent_executor.invoke({
+        "input": user_input,
+        "chat_history": chat_history
+    })
 
-        if bot_response.function_call:
-            function_name = bot_response.function_call.name
-            function_args = json.loads(bot_response.function_call.arguments)
+    bot_response_content = result.get("output", "")
 
-            if function_name == "get_matching_provider_names":
-                function_response = get_matching_provider_names(**function_args)
-            elif function_name == "get_available_slots":
-                function_response = get_available_slots(**function_args)
-            elif function_name == "check_availability":
-                function_response = check_availability(**function_args)
-            else:
-                function_response = {}
-
-            conversation.append({
-                'role': 'function',
-                'name': function_name,
-                'content': json.dumps(function_response, default=str)
-            })
-
-        else:
-            conversation.append({'role': 'assistant', 'content': bot_response.content})
-            break
-
-    save_conversation(room_id, conversation)
-    return bot_response.content
+    return bot_response_content
 
 
 

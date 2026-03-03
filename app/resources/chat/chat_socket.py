@@ -3,7 +3,7 @@ eventlet.monkey_patch()
 import json
 from flask_socketio import emit
 from app.constants import chat_message_queue, chat_delivery_update_queue, REDIS_KEY
-from app.models.extensions import socketio, redis_client
+from app.models.extensions import socketio
 from app.resources.broker.message_sender import enqueue_message
 from app.utils.utils import is_integer
 
