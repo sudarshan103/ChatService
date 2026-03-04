@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 
 from app.models.extensions import mongodb
-from app.resources.bookslot.appointments_function_calling import handle_user_input
+from app.resources.bookslot.appointments_llm_driven import handle_user_input
 from config import Config
 
 
