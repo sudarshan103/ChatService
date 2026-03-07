@@ -1,11 +1,7 @@
 from functools import wraps
 
 from flask import jsonify
-from flask_jwt_extended import verify_jwt_in_request, create_access_token, get_jwt
-
-
-def generate_token(user_id, additional_data):
-    return create_access_token(identity=str(user_id), additional_claims=additional_data)
+from flask_jwt_extended import verify_jwt_in_request, get_jwt
 
 def verify_auth_token(func):
     @wraps(func)

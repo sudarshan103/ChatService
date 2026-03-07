@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime, timezone
 
 from app.models.extensions import mongodb
+from app.models.mongo_utils import MongoCollections
 from app.resources.bookslot.appointments_llm_driven import handle_user_input
 from config import Config
 
@@ -16,7 +17,7 @@ class ChatRepo:
 
         room_mate_uuids = sorted([mate['uuid'] for mate in room_mates])
 
-        existing_room = mongodb()['room'].find_one({
+        existing_room = mongodb()[MongoCollections.ROOM].find_one({
             "room_mates.uuid": {"$all": room_mate_uuids},
             "room_type": 0
         })
@@ -44,14 +45,20 @@ class ChatRepo:
         }
         new_room.update(room_details)
 
-        mongodb()['room'].insert_one(new_room)
+        mongodb()[MongoCollections.ROOM].insert_one(new_room)
         return room_details
 
     @staticmethod
     def process_new_message(data):
         ChatRepo.create_message(data)
         if data.get('is_chatting_to_admin'):
-            bot_response = handle_user_input(data.get('room_id'), data.get('message'))
+            # Client must provide chat_history in the data payload
+            chat_history = data.get('chat_history', [])
+            bot_response = handle_user_input(
+                data.get('room_id'), 
+                data.get('message'),
+                chat_history
+            )
             data['message_id'] = str(uuid.uuid4())
             data['message'] = bot_response
             data['sender_uuid'] = data.get('target_uuid')
@@ -72,7 +79,7 @@ class ChatRepo:
             "delivery_status_trail": [],
             "active": True
         }
-        mongodb()['message'].insert_one(message)
+        mongodb()[MongoCollections.MESSAGE].insert_one(message)
         del message["_id"]
         return message
 
@@ -83,7 +90,7 @@ class ChatRepo:
             "room_id": room_id
         }
         messages = list(
-            mongodb()['message'].find(query)
+            mongodb()[MongoCollections.MESSAGE].find(query)
             .sort("created", -1)  # Sort by created date in descending order (newest first)
             .limit(Config.CHAT_CONTEXT_LIMIT)  # Limit configurable via CHAT_CONTEXT_LIMIT env variable
         )[::-1]  # Reverse the list to get ascending order
@@ -106,7 +113,7 @@ class ChatRepo:
 
         # If last_read_message_id is provided, fetch its created timestamp
         if last_read_message_id:
-            last_read_message = mongodb()['message'].find_one({
+            last_read_message = mongodb()[MongoCollections.MESSAGE].find_one({
                 "message_id": last_read_message_id
             })
             if last_read_message:
@@ -116,7 +123,7 @@ class ChatRepo:
 
         # Fetch matching messages
         messages = list(
-            mongodb()['message'].find(query)
+            mongodb()[MongoCollections.MESSAGE].find(query)
             .sort("created", 1)  # ascending order by time
         )
         return messages
@@ -132,7 +139,7 @@ class ChatRepo:
             "delivery_status":delivery_status
         }
         for message_id in message_ids:
-            mongodb()['message'].update_one(
+            mongodb()[MongoCollections.MESSAGE].update_one(
                 {
                     "message_id": message_id,
                     "delivery_status_trail": {

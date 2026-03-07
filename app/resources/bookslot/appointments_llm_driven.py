@@ -19,171 +19,256 @@ import json
 from app.models.extensions import db
 from config import Config
 
-logger = logging.getLogger(__name__)
 
-# Get current date for the system prompt
-CURRENT_DATE = datetime.now(timezone.utc).strftime("%d-%B-%Y")
+from app.models.extensions import mongodb
+from app.models.mongo_utils import MongoCollections
+
+logger = logging.getLogger(__name__)
 
 # Initialize shared LLM instances
 _parser_llm = None
-_provider_context_by_room = {}
-_slot_context_by_room = {}
-_active_room_id = None
 
-
-def _room_key(room_id) -> str | None:
-    if room_id is None:
-        return None
-    return str(room_id)
-
-
-def _get_parser_llm():
+def _get_llm():
     """Singleton LLM for parsing/normalization."""
     global _parser_llm
     if _parser_llm is None:
         _parser_llm = ChatOpenAI(model=Config.LLM_MODEL, temperature=0)
     return _parser_llm
 
-
-def _strip_json_fence(content: str) -> str:
-    """Remove markdown code fences from model output if present."""
-    cleaned = (content or "").strip()
-    if cleaned.startswith("```"):
-        cleaned = cleaned.split("```")[1]
-        if cleaned.startswith("json"):
-            cleaned = cleaned[4:]
-        cleaned = cleaned.strip()
-    return cleaned
+def _get_current_date() -> str:
+    """Get current date dynamically (not static)."""
+    return datetime.now(timezone.utc).strftime("%d-%B-%Y")
 
 
-def _recover_slot_context_from_history(room_id: str) -> tuple[list, int | None, str | None]:
-    """Recover provider/date/slots from persisted chat history using LLM.
-
+def _get_room_context(room_id: str) -> dict:
+    """Get room context from MongoDB.
+    
+    Args:
+        room_id: Unique room identifier
+        
     Returns:
-        (slots_list, provider_id, requested_date)
+        Dict with 'provider_id', 'provider_name', etc. or empty dict if not found
     """
     try:
-        chat_history = _get_chat_history_from_repo(room_id)
-        if not chat_history:
-            return [], None, None
+        doc = mongodb()[MongoCollections.ROOM_SESSION].find_one({"_id": room_id})
+        if doc:
+            # Remove internal MongoDB fields
+            doc.pop('_id', None)
+            doc.pop('created_at', None)
+            doc.pop('updated_at', None)
+            return doc
+    except Exception as e:
+        logger.debug(f"Error reading room context from MongoDB: {e}")
+    return {}
 
-        recent_messages = chat_history[-12:]
-        transcript = "\n".join([
-            f"{'assistant' if isinstance(msg, AIMessage) else 'user'}: {msg.content}"
-            for msg in recent_messages
-        ])
 
-        llm = _get_parser_llm()
-        prompt = f"""Extract appointment selection context from this conversation.
+def _set_room_context(room_id: str, context_update: dict) -> None:
+    """Set/update room context in MongoDB.
+    
+    Args:
+        room_id: Unique room identifier
+        context_update: Dict with context fields to update
+    """
+    try:
+        collection = mongodb()[MongoCollections.ROOM_SESSION]
+        now_utc = datetime.now(timezone.utc)
+        collection.update_one(
+            {"_id": room_id},
+            {
+                "$set": {
+                    **context_update,
+                    "updated_at": now_utc
+                },
+                "$setOnInsert": {
+                    "created_at": now_utc
+                }
+            },
+            upsert=True
+        )
+    except Exception as e:
+        logger.error(f"Error writing room context to MongoDB: {e}")
 
-Conversation:
-{transcript}
 
-Return ONLY JSON with fields:
-- provider_name: string or null
-- requested_date: YYYY-MM-DD or null
-- slots: array of objects with keys date (YYYY-MM-DD) and time (HH:MM:SS)
+def _get_slot_context(room_id: str) -> dict:
+    """Get slot context (slots, provider_id, requested_date) from MongoDB."""
+    context = _get_room_context(room_id)
+    return {
+        "slots": context.get("slots", []),
+        "provider_id": context.get("provider_id"),
+        "requested_date": context.get("requested_date")
+    }
 
-Rules:
-- Use the latest assistant-shown slot list if present.
-- Convert 12-hour times to HH:MM:SS.
-- If uncertain, return null/empty values safely.
 
-Example format:
-{{"provider_name":"Dr. Nikhil Jadhav","requested_date":"2026-03-05","slots":[{{"date":"2026-03-05","time":"10:30:00"}}]}}"""
+def _set_slot_context(room_id: str, slots: list, provider_id: int | None, requested_date: str | None) -> None:
+    """Set slot context in MongoDB."""
+    _set_room_context(room_id, {
+        "slots": slots,
+        "provider_id": provider_id,
+        "requested_date": requested_date
+    })
 
+def _extract_doctor_name_llm(user_input: str) -> str | None:
+    """Use LLM to extract and normalize doctor name from user input.
+    
+    Removes prefixes like 'Mr', 'Dr', 'Doctor', 'Ms', 'Mrs' and extracts
+    the actual name for efficient database searching.
+    
+    Args:
+        user_input: User's query like "Dr. Nikhil Jadhav" or "I want to see doctor Smith"
+        
+    Returns:
+        Normalized name or None if unable to extract
+    """
+    if not user_input or not user_input.strip():
+        return None
+    
+    llm = _get_llm()
+    
+    prompt = f"""You are a name extraction specialist. Your task is to extract the doctor/provider's name from user input.
+
+STRICT INSTRUCTIONS:
+1. Remove all titles: Dr., Dr, Doctor, Mr., Mr, Ms., Ms, Mrs., Mrs, Prof., Prof, Professor, etc.
+2. Extract ONLY the person's name (first name, last name, or both)
+3. Return the extracted name with no extra words, no periods, no commas
+4. If ONLY a title exists with no actual name (e.g., "I need a cardiologist"), return "NONE"
+
+INPUT TEXT: "{user_input}"
+
+PROCESS:
+- Does the input have a person's name? YES/NO
+- What is that name (without titles)?
+- Return the final answer
+
+EXAMPLES (follow these patterns exactly):
+Input: "Dr. Nikhil Jadhav" → Output: "Nikhil Jadhav"
+Input: "dr nikhil" → Output: "Nikhil"
+Input: "Dr Nikhil" → Output: "Nikhil"
+Input: "doctor nikhil jadhav" → Output: "Nikhil Jadhav"
+Input: "I want Dr Priya" → Output: "Priya"
+Input: "doctor smith" → Output: "smith"
+Input: "Dr Priya Sharma" → Output: "Priya Sharma"
+Input: "Sheetal" → Output: "Sheetal"
+Input: "dr sheetal" → Output: "Sheetal"
+Input: "Professor Kumar" → Output: "Kumar"
+Input: "mr jadhav" → Output: "jadhav"
+Input: "ms gupta please" → Output: "gupta"
+Input: "mrs sharma" → Output: "sharma"
+Input: "I need a cardiologist" → Output: "NONE"
+Input: "find orthopedic doctor" → Output: "NONE"
+Input: "best neurologist" → Output: "NONE"
+
+FINAL ANSWER (return ONLY the name or NONE, nothing else):"""
+    
+    try:
         response = llm.invoke(prompt)
-        payload = json.loads(_strip_json_fence(response.content))
+        name = response.content.strip()
+        # Only return if not empty and not NONE
+        if name and name.upper() != "NONE":
+            return name
+        return None
+    except Exception as e:
+        logger.debug(f"LLM name extraction failed: {e}")
+        return None
 
-        provider_name = payload.get("provider_name")
-        requested_date = payload.get("requested_date")
-        slots = payload.get("slots") or []
 
-        provider_id = None
-        if provider_name:
-            matches = get_matching_providers_llm(provider_name)
-            if matches:
-                provider_id = matches[0].get("id")
+def _convert_client_history_to_langchain(client_history: list) -> list:
+    """Convert client chat history format to LangChain message objects.
+    
+    Args:
+        client_history: List of dicts with format:
+            [{"role": "user" | "assistant", "content": "message text"}, ...]
+    
+    Returns:
+        List of LangChain HumanMessage/AIMessage objects
+    """
+    if not client_history:
+        return []
+    
+    return [
+        AIMessage(content=msg["content"]) if msg["role"] == "assistant"
+        else HumanMessage(content=msg["content"])
+        for msg in client_history
+    ]
 
-        return slots, provider_id, requested_date
-    except Exception as error:
-        logger.debug(f"Slot context recovery from history failed: {error}")
-        return [], None, None
 
 # =============================================================================
 # Provider Matching
 # =============================================================================
 
 def get_matching_providers_llm(user_provider_name: str) -> list:
-    """Use LLM to match user input against available providers."""
+    """Match user input against providers using efficient database query.
+    
+    Strategy:
+    1. Extract actual name from user input (e.g., "Dr. Nikhil" → "Nikhil")
+    2. Query database for providers where name LIKE extracted_name (case-insensitive)
+    3. Avoid loading all providers into memory - use database-level filtering
+    
+    Args:
+        user_provider_name: User's query (can include titles, specialty, or name)
+        
+    Returns:
+        List of matching providers as dicts with id, name, service keys
+    """
+    # First, try LLM to extract the actual name from user input
+    extracted_name = _extract_doctor_name_llm(user_provider_name)
+    
     cursor = db.cursor(dictionary=True)
-    query = "SELECT id, name, service FROM service_providers"
-    cursor.execute(query)
-    all_providers = cursor.fetchall()
-    cursor.close()
     
-    if not all_providers:
-        return []
+    # If LLM extracted a name, search by name similarity
+    if extracted_name and extracted_name.lower() != "none":
+        # Use LIKE query for efficient database-level filtering
+        # Match exact, prefix, or fuzzy patterns
+        search_pattern = f"%{extracted_name}%"
+        
+        query = """
+            SELECT id, name, service FROM service_providers
+            WHERE LOWER(name) LIKE LOWER(%s)
+            ORDER BY 
+                CASE 
+                    WHEN LOWER(name) = LOWER(%s) THEN 0  -- Exact match first
+                    WHEN LOWER(name) LIKE LOWER(%s) THEN 1  -- Prefix match
+                    ELSE 2  -- Contains match
+                END,
+                name ASC
+            LIMIT 20
+        """
+        
+        exact_pattern = extracted_name
+        prefix_pattern = f"{extracted_name}%"
+        
+        try:
+            cursor.execute(query, (search_pattern, exact_pattern, prefix_pattern))
+            results = cursor.fetchall()
+            cursor.close()
+            
+            if results:
+                return results
+            cursor = db.cursor(dictionary=True)
+        except Exception as e:
+            logger.debug(f"Database search failed: {e}")
+            cursor.close()
+            cursor = db.cursor(dictionary=True)
     
-    llm = _get_parser_llm()
-    
-    # Create provider list for LLM
-    provider_list = "\n".join([
-        f"- ID {p['id']}: {p['name']} ({p['service']})"
-        for p in all_providers
-    ])
-    
-    prompt = f"""Match the user's request to available providers.
-
-User looking for: "{user_provider_name}"
-
-Available providers:
-{provider_list}
-
-Return JSON array of matching provider IDs, ordered by relevance.
-Examples:
-- User "Nikhil" → [3] if Nikhil Jadhav exists
-- User "cardiologist" → [2] if Priya does cardiology
-- User "Sheetal" → [1] if exact match
-
-Return ONLY JSON array like [3] or [3, 1] or [] if no match."""
-
-    retry_prompt = f"""You must return the best provider IDs for this user query, even with spelling variation or partial names.
-
-User query: "{user_provider_name}"
-
-Available providers:
-{provider_list}
-
-Rules:
-- Return ONLY a JSON array of provider IDs ordered by relevance.
-- If uncertain, include the top likely matches instead of returning empty.
-- Prefer semantic and phonetic closeness.
-
-Output format examples: [3] or [2, 1] or []"""
-
+    # Fallback: if extraction failed or no results, try specialty/service search
     try:
-        response = llm.invoke(prompt)
-        content = _strip_json_fence(response.content)
+        search_pattern = f"%{user_provider_name}%"
+        query = """
+            SELECT id, name, service FROM service_providers
+            WHERE LOWER(name) LIKE LOWER(%s) OR LOWER(service) LIKE LOWER(%s)
+            ORDER BY name ASC
+            LIMIT 20
+        """
         
-        matched_ids = json.loads(content)
+        cursor.execute(query, (search_pattern, search_pattern))
+        results = cursor.fetchall()
+        cursor.close()
         
-        # Return providers in matched order
-        id_to_provider = {p['id']: p for p in all_providers}
-        matched_providers = [id_to_provider[pid] for pid in matched_ids if pid in id_to_provider]
-        if matched_providers:
-            return matched_providers
-
-        logger.debug("LLM returned no provider IDs, retrying with stricter prompt")
-        retry_response = llm.invoke(retry_prompt)
-        retry_content = _strip_json_fence(retry_response.content)
-
-        retry_ids = json.loads(retry_content)
-        retry_matches = [id_to_provider[pid] for pid in retry_ids if pid in id_to_provider]
-        return retry_matches
-        
+        return results if results else []
+    
     except Exception as e:
-        logger.debug(f"LLM matching failed: {e}")
+        logger.debug(f"Provider matching failed: {e}")
+        if cursor:
+            cursor.close()
         return []
 
 
@@ -205,7 +290,7 @@ def normalize_datetime_llm(value: str, value_type: str, current_date: str) -> st
     if not value:
         return None
     
-    llm = _get_parser_llm()
+    llm = _get_llm()
     
     if value_type == "date":
         prompt = f"""Today's date is {current_date}.
@@ -245,35 +330,28 @@ Return ONLY the time in HH:MM:SS format, nothing else. If cannot parse, return "
 # Agent Tools
 # =============================================================================
 
-def get_available_slots(provider_id: int, date: str | None = None):
+def get_available_slots(provider_id: int, room_id: str | None = None, date: str | None = None):
     """Fetch available slots from database.
     
     Returns JSON with slots data for the LLM to format and present.
     """
-    global _active_room_id
-    
-    room_id_key = _room_key(_active_room_id)
-    if room_id_key:
-        room_context = _provider_context_by_room.get(room_id_key, {})
-        primary_provider_id = room_context.get("primary_provider_id")
-        
-        if primary_provider_id and provider_id != primary_provider_id:
-            return json.dumps({
-                "error": "provider_mismatch",
-                "message": f"Provider mismatch: requested {provider_id}, expected {primary_provider_id}"
-            })
-    
     cursor = db.cursor(dictionary=True)
     
-    if date:
+    normalized_date = date
+    if normalized_date:
+        normalized_date = str(normalized_date).strip()
+        if "T" in normalized_date:
+            normalized_date = normalized_date.split("T", 1)[0]
+
+    if normalized_date:
         query = """
             SELECT ss.available_date, ss.available_time, sp.name, sp.service
             FROM service_slots ss
             JOIN service_providers sp ON ss.provider_id = sp.id
-            WHERE sp.id = %s AND ss.available_date = %s
+            WHERE sp.id = %s AND DATE(ss.available_date) = %s
             ORDER BY ss.available_date, ss.available_time
         """
-        cursor.execute(query, (provider_id, date))
+        cursor.execute(query, (provider_id, normalized_date))
     else:
         query = """
             SELECT ss.available_date, ss.available_time, sp.name, sp.service
@@ -309,41 +387,32 @@ def get_available_slots(provider_id: int, date: str | None = None):
             "time": time_24h
         })
     
-    if room_id_key:
-        if room_id_key not in _slot_context_by_room:
-            _slot_context_by_room[room_id_key] = {}
-        _slot_context_by_room[room_id_key]["slots"] = slots_data
-        _slot_context_by_room[room_id_key]["provider_id"] = provider_id
-        _slot_context_by_room[room_id_key]["requested_date"] = date
+    if room_id:
+        _set_slot_context(room_id, slots_data, provider_id, normalized_date)
     
     return json.dumps({
         "provider_id": provider_id,
-        "date_filter": date,
+        "date_filter": normalized_date,
         "slots": slots_data,
         "count": len(slots_data)
     })
 
-def check_availability(provider_id: int, date: str, time: str):
+def check_availability(provider_id: int, room_id: str | None = None, date: str | None = None, time: str | None = None):
     """Check if a specific slot is available."""
-    global _active_room_id
-    
-    room_id_key = _room_key(_active_room_id)
-    if room_id_key:
-        room_context = _provider_context_by_room.get(room_id_key, {})
-        primary_provider_id = room_context.get("primary_provider_id")
-        
-        if primary_provider_id and provider_id != primary_provider_id:
-            provider_id = primary_provider_id
-            logger.info(f"Corrected provider_id to {provider_id} based on context")
-    
+    normalized_date = date
+    if normalized_date:
+        normalized_date = str(normalized_date).strip()
+        if "T" in normalized_date:
+            normalized_date = normalized_date.split("T", 1)[0]
+
     cursor = db.cursor(dictionary=True)
     query = """
         SELECT COUNT(*) as count 
         FROM service_slots ss
         JOIN service_providers sp ON ss.provider_id = sp.id
-        WHERE sp.id = %s AND ss.available_date = %s AND ss.available_time = %s
+        WHERE sp.id = %s AND DATE(ss.available_date) = %s AND ss.available_time = %s
     """
-    cursor.execute(query, (provider_id, date, time))
+    cursor.execute(query, (provider_id, normalized_date, time))
     result = cursor.fetchone()
     cursor.close()
     
@@ -354,21 +423,22 @@ def check_availability(provider_id: int, date: str, time: str):
 # Agent Configuration
 # =============================================================================
 
-def create_appointment_agent_llm_driven(room_id: str) -> AgentExecutor:
-    """Create appointment booking agent with LangChain and OpenAI function calling."""
-    global _active_room_id
-    _active_room_id = _room_key(room_id)
+def create_langchain_agent(room_id: str) -> AgentExecutor:
+    """Create appointment booking agent with LangChain and OpenAI function calling.
     
-    # Initialize room context
-    room_id_key = _room_key(room_id)
-    if room_id_key not in _provider_context_by_room:
-        _provider_context_by_room[room_id_key] = {}
-    if room_id_key not in _slot_context_by_room:
-        _slot_context_by_room[room_id_key] = {}
+    Args:
+        room_id: Unique room identifier
     
-    llm = ChatOpenAI(model=Config.LLM_MODEL, temperature=0)
+    Returns:
+        Configured AgentExecutor instance
+    """
+
     
-    system_prompt = f"""You are a helpful medical appointment booking assistant. Today is {CURRENT_DATE}.
+    llm = _get_llm()
+    
+    current_date = _get_current_date()
+    
+    system_prompt = f"""You are a helpful medical appointment booking assistant. Today is {current_date}.
 
 Your role:
 - Help users search for healthcare providers they want to see
@@ -378,19 +448,39 @@ Your role:
 - When a user selects a numbered slot (e.g., "slot 1" or "option 2"), ALWAYS use the select_slot tool with that number
 - Suggest alternative dates if their preferred date has no availability
 - Be conversational, warm, and helpful
+- Keep technical fields internal (IDs, raw JSON, tool outputs)
 
-CRITICAL WORKFLOW:
-1. User mentions a provider → call search_providers(provider_name)
-2. Read provider_id from search_providers response (prefer primary_provider_id)
-3. Ask user for preferred date
-4. Call get_available_slots(provider_id, date) using the provider_id from step 2
-5. Display slots numbered 1, 2, 3...
-6. When user selects slot → call select_slot(slot_number) with that number
-7. After select_slot success, acknowledge booking confirmation directly (no real booking API call needed)
+CRITICAL WORKFLOW - FOLLOW EXACTLY:
+1. User mentions a provider name → Call search_providers(provider_name)
+2. EXTRACT the primary_provider_id from search_providers JSON response (e.g., if response has "primary_provider_id": 3, save ID=3)
+3. Mention only the found provider name to user (never mention IDs)
+4. Ask user for their preferred appointment date (if not already mentioned)
+5. Call get_available_slots(provider_id=<THE ID FROM STEP 2>, date=<USER'S DATE>) - USE THE EXACT ID RETURNED BY search_providers
+6. Display slots as numbered list (1, 2, 3, etc.)
+7. When user selects a slot number → Call select_slot(slot_number) with that number
+8. After select_slot succeeds, confirm the booking with provider name, date, and time
 
-Use the available tools: search_providers, get_available_slots, select_slot, check_availability.
-Always confirm provider and date details with users before finalizing.
-If you encounter any errors or data is missing, ask the user to clarify or try again."""
+MANDATORY ID TRACKING:
+- ALWAYS capture provider_id from search_providers response
+- ALWAYS use that EXACT ID in get_available_slots - NEVER guess or use different IDs
+- If you get these IDs: primary_provider_id=3, then call get_available_slots with provider_id=3
+- Keep IDs strictly internal for tool calls; do not expose IDs in user-facing responses
+
+RESPONSE SAFETY RULES:
+- NEVER include provider IDs, slot context IDs, or internal keys in user-facing text
+- NEVER paste raw JSON/tool output to the user
+- Summarize tool results in natural language only
+
+IMPORTANT: Slots are pre-verified as available. DO NOT re-check availability.
+
+MISSING CONTEXT RULE:
+- If provider or slot context is missing/not found, do not guess.
+- Ask the user for BOTH: provider name and preferred appointment date.
+- Then continue from step 1.
+
+Use the available tools: search_providers, get_available_slots, select_slot.
+Always confirm provider and date details before finalizing.
+If errors occur, ask the user to clarify or try again."""
     
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
@@ -407,27 +497,19 @@ If you encounter any errors or data is missing, ask the user to clarify or try a
         provider_id: int = Field(description="Doctor's ID from provider search")
         date: str | None = Field(default=None, description="Appointment date in YYYY-MM-DD format (optional)")
     
-    class AvailabilityInput(BaseModel):
-        provider_id: int = Field(description="Doctor's ID")
-        date: str = Field(description="Appointment date")
-        time: str = Field(description="Appointment time")
-    
     class SelectSlotInput(BaseModel):
         slot_number: int = Field(description="The slot number (1, 2, 3, etc.) that the user selected from the displayed list")
     
     def search_providers_wrapper(provider_name: str) -> str:
         """Search for matching healthcare providers. Returns JSON with provider IDs."""
-        global _active_room_id
-        
         matches = get_matching_providers_llm(provider_name)
         
         # Store primary provider in context if found
-        room_id_key = _room_key(_active_room_id)
-        if room_id_key and matches:
-            if room_id_key not in _provider_context_by_room:
-                _provider_context_by_room[room_id_key] = {}
-            _provider_context_by_room[room_id_key]["primary_provider_id"] = matches[0]['id']
-            _provider_context_by_room[room_id_key]["provider_name"] = matches[0]['name']
+        if matches:
+            _set_room_context(room_id, {
+                "primary_provider_id": matches[0]['id'],
+                "provider_name": matches[0]['name']
+            })
         
         # Return JSON with explicit primary provider details for next tool calls
         return json.dumps({
@@ -443,29 +525,12 @@ If you encounter any errors or data is missing, ask the user to clarify or try a
     
     def get_slots_wrapper(provider_id: int, date: str | None = None) -> str:
         """Get available appointment slots."""
-        global _active_room_id
-        
-        # Enforce provider continuity from room context if available
-        room_id_key = _room_key(_active_room_id)
-        if room_id_key:
-            room_context = _provider_context_by_room.get(room_id_key, {})
-            primary_provider_id = room_context.get("primary_provider_id")
-            if primary_provider_id:
-                provider_id = primary_provider_id
-
-        result = get_available_slots(provider_id, date)
+        result = get_available_slots(provider_id, room_id, date)
         
         try:
             result_data = json.loads(result)
         except:
             return result
-        if room_id_key and "slots" in result_data:
-            if room_id_key not in _slot_context_by_room:
-                _slot_context_by_room[room_id_key] = {}
-            _slot_context_by_room[room_id_key]["slots"] = result_data.get("slots", [])
-            _slot_context_by_room[room_id_key]["provider_id"] = provider_id
-            _slot_context_by_room[room_id_key]["requested_date"] = date
-        
         return json.dumps({
             "provider_id": provider_id,
             "requested_date": date,
@@ -474,73 +539,20 @@ If you encounter any errors or data is missing, ask the user to clarify or try a
             "all_available_dates": _get_all_provider_dates(provider_id) if date and result_data.get("count", 0) == 0 else None
         })
     
-    def check_availability_wrapper(provider_id: int, date: str, time: str) -> str:
-        """Check if a specific slot is available."""
-        normalized_date = normalize_datetime_llm(date, "date", CURRENT_DATE) or date
-        normalized_time = normalize_datetime_llm(time, "time", CURRENT_DATE) or time
-        
-        is_available = check_availability(provider_id, normalized_date, normalized_time)
-        
-        return json.dumps({
-            "provider_id": provider_id,
-            "requested_date": date,
-            "normalized_date": normalized_date,
-            "requested_time": time,
-            "normalized_time": normalized_time,
-            "available": is_available
-        })
-    
     def select_slot_wrapper(slot_number: int) -> str:
         """Resolve a slot number to actual appointment details.
         
         When user selects "slot 1" or "option 2", this maps the number to 
-        the actual provider_id, date, and time from the context.
+        the actual provider_id, date, and time from MongoDB storage.
         """
-        global _active_room_id
-        
-        room_id_key = _room_key(_active_room_id)
-        if not room_id_key or room_id_key not in _slot_context_by_room:
-            return json.dumps({
-                "error": "no_slots_available",
-                "message": "No slots in context. Please ask for available slots first."
-            })
-        
-        room_slots = _slot_context_by_room[room_id_key]
-        slots_list = room_slots.get("slots", [])
-        provider_id = room_slots.get("provider_id")
-        requested_date = room_slots.get("requested_date")
-
-        recovered_slots, recovered_provider_id, recovered_date = _recover_slot_context_from_history(room_id_key)
-        if recovered_slots:
-            room_slots["slots"] = recovered_slots
-            slots_list = recovered_slots
-        if recovered_provider_id:
-            provider_id = recovered_provider_id
-            room_slots["provider_id"] = recovered_provider_id
-        if recovered_date:
-            requested_date = recovered_date
-            room_slots["requested_date"] = recovered_date
-
-        if not slots_list:
-            provider_context = _provider_context_by_room.get(room_id_key, {})
-            provider_id = provider_id or provider_context.get("primary_provider_id")
-
-            if provider_id and requested_date:
-                recovered = get_available_slots(provider_id, requested_date)
-                try:
-                    recovered_data = json.loads(recovered)
-                    recovered_slots = recovered_data.get("slots", [])
-                    room_slots["slots"] = recovered_slots
-                    room_slots["provider_id"] = provider_id
-                    room_slots["requested_date"] = requested_date
-                    slots_list = recovered_slots
-                except Exception:
-                    pass
+        slot_context = _get_slot_context(room_id)
+        slots_list = slot_context.get("slots", [])
+        provider_id = slot_context.get("provider_id")
         
         if not slots_list or slot_number < 1 or slot_number > len(slots_list):
             return json.dumps({
                 "error": "invalid_slot_number",
-                "message": f"Slot {slot_number} is not valid. Available slots: 1-{len(slots_list)}"
+                "message": "Slot context not found. Please search for a provider and request available slots again."
             })
         
         selected_slot = slots_list[slot_number - 1]
@@ -569,14 +581,8 @@ If you encounter any errors or data is missing, ask the user to clarify or try a
             args_schema=SlotsInput
         ),
         StructuredTool(
-            name="check_availability",
-            description="Check if a specific date/time slot is available for a provider.",
-            func=check_availability_wrapper,
-            args_schema=AvailabilityInput
-        ),
-        StructuredTool(
             name="select_slot",
-            description="When user selects a numbered slot (e.g., 'slot 1', 'option 2'), use this tool to resolve the slot number to actual appointment details (provider_id, date, time).",
+            description="When user selects a numbered slot (e.g., 'slot 1', 'option 2'), use this tool to resolve the slot number to actual appointment details (provider_id, date, time). Slots are pre-verified as available.",
             func=select_slot_wrapper,
             args_schema=SelectSlotInput
         ),
@@ -584,25 +590,6 @@ If you encounter any errors or data is missing, ask the user to clarify or try a
     
     agent = create_openai_functions_agent(llm, tools, prompt)
     return AgentExecutor(agent=agent, tools=tools, verbose=True)
-
-
-def process_appointment_message_llm_driven(user_message: str, room_id: str, chat_history: list = None):
-    """Process appointment booking request."""
-    agent_executor = create_appointment_agent_llm_driven(room_id)
-    
-    if chat_history is None:
-        chat_history = []
-    
-    try:
-        response = agent_executor.invoke({
-            "input": user_message,
-            "chat_history": chat_history
-        })
-        return response.get("output", "")
-    
-    except Exception as e:
-        logger.error(f"Error processing appointment message: {e}")
-        return f"Encountered error: {str(e)}"
 
 
 # =============================================================================
@@ -614,10 +601,10 @@ def _get_all_provider_dates(provider_id: int) -> list:
     try:
         cursor = db.cursor(dictionary=True)
         query = """
-            SELECT DISTINCT ss.available_date
+            SELECT DISTINCT DATE(ss.available_date) AS available_date
             FROM service_slots ss
             WHERE ss.provider_id = %s
-            ORDER BY ss.available_date
+            ORDER BY DATE(ss.available_date)
         """
         cursor.execute(query, (provider_id,))
         results = cursor.fetchall()
@@ -638,72 +625,34 @@ def _get_all_provider_dates(provider_id: int) -> list:
 # Integration Functions (Compatible with existing system)
 # =============================================================================
 
-_agent_executor_cache = None
 
-def _get_agent_executor_llm(room_id: str):
-    """Get or create agent executor."""
-    return create_appointment_agent_llm_driven(room_id)
-
-
-def _get_chat_history_from_repo(room_id):
-    """Fetch chat history from repository and convert to LangChain format."""
-    from app.models.chat_repo import ChatRepo
+def handle_user_input(room_id: str, user_input: str, chat_history: list):
+    """Handle user input with the appointment booking agent.
     
-    messages = ChatRepo.get_recent_messages(room_id)
-
-    if not messages:
-        return []
-
-    current_user_uuid = messages[-1].get("sender_uuid")
-    all_sender_uuids = [
-        msg.get("sender_uuid")
-        for msg in messages
-        if msg.get("sender_uuid")
-    ]
-    unique_sender_uuids = list(dict.fromkeys(all_sender_uuids))
-
-    ai_sender_uuid = None
-    if current_user_uuid and len(unique_sender_uuids) == 2:
-        for sender_uuid in unique_sender_uuids:
-            if sender_uuid != current_user_uuid:
-                ai_sender_uuid = sender_uuid
-                break
+    Args:
+        room_id: Unique room identifier
+        user_input: Current user message
+        chat_history: REQUIRED list of message dicts from client:
+            [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]
+            Client must provide conversation history for context.
     
-    chat_history = []
-    for msg in messages:
-        content = msg.get('message', '')
-        sender_uuid = msg.get("sender_uuid")
-        if ai_sender_uuid and sender_uuid == ai_sender_uuid:
-            chat_history.append(AIMessage(content=content))
-        else:
-            chat_history.append(HumanMessage(content=content))
+    Returns:
+        Bot response string
+    """
+    langchain_history = _convert_client_history_to_langchain(chat_history)
     
-    return chat_history
-
-
-def handle_user_input(room_id, user_input):
-    """Handle user input with the appointment booking agent."""
-    global _active_room_id
-
-    agent_executor = _get_agent_executor_llm(room_id)
-
-    chat_history = _get_chat_history_from_repo(room_id)
-
-    # Avoid duplicating current message
-    if chat_history and isinstance(chat_history[-1], HumanMessage) and chat_history[-1].content == user_input:
-        chat_history = chat_history[:-1]
+    # Create agent executor
+    agent_executor = create_langchain_agent(room_id)
     
-    _active_room_id = _room_key(room_id)
+
     try:
         result = agent_executor.invoke({
             "input": user_input,
-            "chat_history": chat_history
+            "chat_history": langchain_history
         })
         bot_response = result.get("output", "")
     except Exception as e:
         logger.error(f"Agent error: {e}", exc_info=True)
         bot_response = ""
-    finally:
-        _active_room_id = None
 
     return bot_response

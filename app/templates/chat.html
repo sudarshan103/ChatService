@@ -232,6 +232,7 @@
             let selfName = getCookie('name');
             const chatContent = document.getElementById('chatContent');
             let messagePoller = null;
+            let sessionChatHistory = []; // In-memory chat history for current conversation
 
             const authToken = getCookie('authToken');
             if (!authToken) {
@@ -266,6 +267,7 @@
                 .catch(error => console.error('Error:', error));
 
             const loadChat = (targetUuid, targetName, contactElement, isTargetAdmin) => {
+                sessionChatHistory = []; // Clear in-memory history when switching contacts
                 isChattingToAdmin = isTargetAdmin;
                 targetId = targetUuid;
                 targetReceiverName = targetName;
@@ -313,6 +315,34 @@
                     .catch(error => console.error('Error:', error));
             };
 
+            // Chat history management - full in-memory with 4 KB limit
+            function collectChatHistory() {
+                // Use in-memory session history
+                // Page refresh reloads history via normal API flow
+                return sessionChatHistory;
+            }
+
+            function trimHistoryToSize(history, maxBytes = 4096) {
+                if (!history || history.length === 0) return [];
+                
+                let trimmed = [];
+                let currentSize = 0;
+                
+                // Add recent messages backwards to stay within size limit
+                for (let i = history.length - 1; i >= 0; i--) {
+                    const msg = history[i];
+                    const msgJson = JSON.stringify(msg);
+                    const msgSize = new Blob([msgJson]).size; // Size in bytes
+                    
+                    if (currentSize + msgSize <= maxBytes) {
+                        trimmed.unshift(msg);
+                        currentSize += msgSize;
+                    }
+                }
+                
+                return trimmed;
+            }
+
             // Send message functionality
             const sendButton = document.getElementById('sendButton');
             const messageInput = document.getElementById('messageInput');
@@ -321,6 +351,11 @@
             sendButton.addEventListener('click', () => {
                 const messageContent = messageInput.value.trim();
                 if (messageContent !== '') {
+                    // Collect chat history from in-memory buffer
+                    const fullHistory = collectChatHistory();
+                    // Trim to 4 KB (4096 bytes) while preserving first message
+                    const chatHistory = trimHistoryToSize(fullHistory, 4096);
+                    
                     const messageData = {
                         message_id: generateUUID(),
                         room_id: roomId,
@@ -329,7 +364,8 @@
                         sender_name: selfName,
                         is_chatting_to_admin: isChattingToAdmin,
                         target_uuid: targetId,
-                        target_name: targetReceiverName
+                        target_name: targetReceiverName,
+                        chat_history: chatHistory  // Add chat history to payload
                     };
                     sendMessage(messageData);
                     document.getElementById('messageInput').value = '';
@@ -461,6 +497,12 @@
                 let newMessageIds = [];
                 if (messages.length > 0) {
                     messages.forEach(message => {
+                        // Store in in-memory history
+                        sessionChatHistory.push({
+                            role: message.sender_uuid === selfUuid ? 'user' : 'assistant',
+                            content: message.message
+                        });
+                        
                         if (message.delivery_status < 2 && message.sender_uuid !== selfUuid) {
                             newMessageIds.push(message.message_id);
                         }
