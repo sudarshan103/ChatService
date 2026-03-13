@@ -12,7 +12,7 @@ from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.schema import HumanMessage, AIMessage
 from pydantic import BaseModel, Field
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta, time as dt_time
 import logging
 import json
 
@@ -212,7 +212,7 @@ def get_matching_providers_llm(user_provider_name: str) -> list:
     # First, try LLM to extract the actual name from user input
     extracted_name = _extract_doctor_name_llm(user_provider_name)
     
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor()
     
     # If LLM extracted a name, search by name similarity
     if extracted_name and extracted_name.lower() != "none":
@@ -222,11 +222,11 @@ def get_matching_providers_llm(user_provider_name: str) -> list:
         
         query = """
             SELECT id, name, service FROM service_providers
-            WHERE LOWER(name) LIKE LOWER(%s)
+            WHERE name ILIKE %s
             ORDER BY 
                 CASE 
-                    WHEN LOWER(name) = LOWER(%s) THEN 0  -- Exact match first
-                    WHEN LOWER(name) LIKE LOWER(%s) THEN 1  -- Prefix match
+                    WHEN name ILIKE %s THEN 0  -- Exact match first
+                    WHEN name ILIKE %s THEN 1  -- Prefix match
                     ELSE 2  -- Contains match
                 END,
                 name ASC
@@ -243,18 +243,18 @@ def get_matching_providers_llm(user_provider_name: str) -> list:
             
             if results:
                 return results
-            cursor = db.cursor(dictionary=True)
+            cursor = db.cursor()
         except Exception as e:
             logger.debug(f"Database search failed: {e}")
             cursor.close()
-            cursor = db.cursor(dictionary=True)
+            cursor = db.cursor()
     
     # Fallback: if extraction failed or no results, try specialty/service search
     try:
         search_pattern = f"%{user_provider_name}%"
         query = """
             SELECT id, name, service FROM service_providers
-            WHERE LOWER(name) LIKE LOWER(%s) OR LOWER(service) LIKE LOWER(%s)
+            WHERE name ILIKE %s OR service ILIKE %s
             ORDER BY name ASC
             LIMIT 20
         """
@@ -335,7 +335,7 @@ def get_available_slots(provider_id: int, room_id: str | None = None, date: str 
     
     Returns JSON with slots data for the LLM to format and present.
     """
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor()
     
     normalized_date = date
     if normalized_date:
@@ -375,12 +375,16 @@ def get_available_slots(provider_id: int, room_id: str | None = None, date: str 
         
         time_obj = slot['available_time']
         if isinstance(time_obj, str):
-            time_24h = time_obj
-        else:
+            time_24h = f"{time_obj}:00" if len(time_obj) == 5 else time_obj
+        elif isinstance(time_obj, dt_time):
+            time_24h = time_obj.strftime("%H:%M:%S")
+        elif isinstance(time_obj, timedelta):
             total_seconds = int(time_obj.total_seconds())
             hours = total_seconds // 3600
             minutes = (total_seconds % 3600) // 60
             time_24h = f"{hours:02d}:{minutes:02d}:00"
+        else:
+            time_24h = str(time_obj)
         
         slots_data.append({
             "date": date_str,
@@ -405,7 +409,7 @@ def check_availability(provider_id: int, room_id: str | None = None, date: str |
         if "T" in normalized_date:
             normalized_date = normalized_date.split("T", 1)[0]
 
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor()
     query = """
         SELECT COUNT(*) as count 
         FROM service_slots ss
@@ -599,7 +603,7 @@ If errors occur, ask the user to clarify or try again."""
 def _get_all_provider_dates(provider_id: int) -> list:
     """Get all unique dates with available slots for a provider."""
     try:
-        cursor = db.cursor(dictionary=True)
+        cursor = db.cursor()
         query = """
             SELECT DISTINCT DATE(ss.available_date) AS available_date
             FROM service_slots ss
