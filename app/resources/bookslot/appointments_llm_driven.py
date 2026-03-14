@@ -11,12 +11,12 @@ from langchain.tools import StructuredTool
 from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.schema import HumanMessage, AIMessage
-from pydantic import BaseModel, Field
 from datetime import datetime, timezone, timedelta, time as dt_time
 import logging
 import json
 
 from app.models.extensions import db
+from app.models.schemas import ProviderInput, SelectSlotInput, SlotsInput
 from config import Config
 
 
@@ -492,17 +492,6 @@ If errors occur, ask the user to clarify or try again."""
         ("human", "{input}"),
         MessagesPlaceholder(variable_name="agent_scratchpad")
     ])
-    
-    # Define tools
-    class ProviderInput(BaseModel):
-        provider_name: str = Field(description="Doctor's name or specialty")
-    
-    class SlotsInput(BaseModel):
-        provider_id: int = Field(description="Doctor's ID from provider search")
-        date: str | None = Field(default=None, description="Appointment date in YYYY-MM-DD format (optional)")
-    
-    class SelectSlotInput(BaseModel):
-        slot_number: int = Field(description="The slot number (1, 2, 3, etc.) that the user selected from the displayed list")
     
     def search_providers_wrapper(provider_name: str) -> str:
         """Search for matching healthcare providers. Returns JSON with provider IDs."""

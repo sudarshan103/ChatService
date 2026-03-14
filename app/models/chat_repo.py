@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from app.models.extensions import mongodb
 from app.models.mongo_utils import MongoCollections
 from app.resources.bookslot.appointments_llm_driven import handle_user_input
+from app.resources.bookslot.agentic_rag.service import handle_user_input_agentic
 from config import Config
 
 
@@ -54,8 +55,9 @@ class ChatRepo:
         if data.get('is_chatting_to_admin'):
             # Client must provide chat_history in the data payload
             chat_history = data.get('chat_history', [])
-            bot_response = handle_user_input(
-                data.get('room_id'), 
+            handler = handle_user_input_agentic if Config.ENABLE_AGENTIC_RAG else handle_user_input
+            bot_response = handler(
+                data.get('room_id'),
                 data.get('message'),
                 chat_history
             )
