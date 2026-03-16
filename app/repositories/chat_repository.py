@@ -2,7 +2,6 @@ import uuid
 from datetime import datetime, timezone
 
 from app.models.extensions import mongodb
-from app.resources.bookslot.agentic_booking_workflow import run_agentic_booking_flow
 from config import Config
 
 
@@ -106,6 +105,9 @@ class ChatRepository:
     def process_new_message(data: dict) -> None:
         ChatRepository.create_message(data)
         if data.get("is_chatting_to_admin"):
+            # Import lazily to avoid a module-load circular dependency with booking workflow.
+            from app.resources.bookslot.agentic_booking_workflow import run_agentic_booking_flow
+
             chat_history = data.get("chat_history", [])
             bot_response = run_agentic_booking_flow(
                 data.get("room_id"),

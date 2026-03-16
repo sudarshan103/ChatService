@@ -80,16 +80,19 @@ def _build_session_context_block(room_id: str) -> str:
 
     slots = context.get("slots", [])
     if slots:
+        requested_date = _format_date_for_user(context.get("requested_date")) or context.get("requested_date")
         lines.append(
             f"Pending slot options displayed to user: {len(slots)} slot(s) for "
-            f"provider_id={context.get('provider_id')} on {context.get('requested_date')}"
+            f"provider_id={context.get('provider_id')} on {requested_date}"
         )
 
     confirmed_bookings = context.get("confirmed_bookings") or []
     if confirmed_bookings:
-        provider_term = Config.PROVIDER_DISPLAY_TERM
         booking_lines = [
-            f"  {i + 1}. {b.get('provider_name')} on {b.get('date')} at {b.get('time')}"
+            (
+                f"  {i + 1}. {b.get('provider_name')} on "
+                f"{_format_date_for_user(b.get('date')) or b.get('date')} at {b.get('time')}"
+            )
             for i, b in enumerate(confirmed_bookings)
         ]
         lines.append(f"Confirmed bookings this session:\n" + "\n".join(booking_lines))
@@ -119,6 +122,107 @@ def _pretty_slot_label(slot: dict) -> str:
             continue
 
     return f"{pretty_date}, {pretty_time}"
+
+
+def _format_date_for_user(value: str | None) -> str:
+    """Render ISO dates for users as DD Mon YYYY; otherwise keep original text."""
+    raw_value = str(value or "").strip()
+    if not raw_value:
+        return ""
+    try:
+        return datetime.strptime(raw_value, "%Y-%m-%d").strftime("%d %b %Y")
+    except Exception:
+        return raw_value
+
+
+def _render_availability_reply(payload: dict, provider_name: str, provider_term: str) -> str | None:
+    """Convert availability tool payload into a concise user-facing response."""
+    error_code = payload.get("error")
+    if error_code in {"invalid_date", "missing_date"}:
+        return payload.get(
+            "message",
+            f"Please share your preferred date for {provider_name or f'the selected {provider_term}'}.",
+        )
+
+    slot_lines = payload.get("slot_lines") or []
+    if slot_lines:
+        date_filter = _format_date_for_user(payload.get("date_filter")) or "the selected date"
+        slot_text = "\n".join(slot_lines)
+
+        if payload.get("no_slots_on_requested_date"):
+            original_date = _format_date_for_user(payload.get("original_date_requested")) or "that date"
+            return (
+                f"{provider_name} is not available on {original_date}. "
+                f"Here are the next available slots on {date_filter}:\n"
+                f"{slot_text}\n"
+                "Please choose a slot number."
+            )
+
+        return (
+            f"Here are the available slots for {provider_name} on {date_filter}:\n"
+            f"{slot_text}\n"
+            "Please choose a slot number."
+        )
+
+    if payload.get("all_available_dates") == []:
+        return (
+            f"I could not find any open slots for {provider_name} right now. "
+            f"Would you like to try a different {provider_term}?"
+        )
+
+    return None
+
+
+def _try_handle_awaiting_date(room_id: str, context: dict, user_input: str, provider_term: str) -> str | None:
+    """Resolve pending date collection in one turn, returning a reply when handled."""
+    awaiting_provider_id = context.get("awaiting_date_for_provider_id")
+    if not awaiting_provider_id:
+        return None
+
+    tools_obj = BookingAgentTools(room_id)
+    availability_result = tools_obj.get_provider_availability_slots(
+        provider_id=awaiting_provider_id,
+        date=user_input,
+    )
+
+    try:
+        payload = json.loads(availability_result)
+    except Exception:
+        return availability_result
+
+    provider_name = context.get("active_provider_name") or f"the selected {provider_term}"
+    return _render_availability_reply(payload, provider_name, provider_term)
+
+
+def _try_handle_booking_shortcircuit(
+    room_id: str,
+    context: dict,
+    user_input: str,
+    llm: ChatOpenAI,
+    provider_term: str,
+) -> str | None:
+    """Handle one-turn acknowledgement after a confirmed booking."""
+    if context.get("booking_state") != "confirmed":
+        return None
+
+    user_intent = _classify_user_intent(user_input, booking_confirmed=True, llm=llm)
+    if user_intent == "confirm_booking":
+        last_booking = (context.get("confirmed_bookings") or [{}])[-1]
+        provider_name = last_booking.get("provider_name") or f"the selected {provider_term}"
+        date = _format_date_for_user(last_booking.get("date"))
+        time = last_booking.get("time")
+        ChatRepository.update_room_context(room_id, {"booking_state": None})
+        if date and time:
+            return (
+                f"Your appointment with {provider_name} on {date} at {time} is confirmed. "
+                "If you need another appointment or have any changes, just let me know."
+            )
+        return "Your appointment is confirmed. If you need another appointment or have any changes, just let me know."
+
+    # Any other intent (change request, new booking, follow-up question): clear
+    # the transient confirmation flag and continue through the normal agent flow.
+    ChatRepository.update_room_context(room_id, {"booking_state": None})
+    return None
 
 
 class BookingAgentTools:
@@ -166,6 +270,7 @@ class BookingAgentTools:
         except Exception:
             return result
 
+        resolved_service = data.get("resolved_service") or specialty
         providers = data.get("providers", []) or []
         if len(providers) == 1:
             primary = providers[0]
@@ -174,7 +279,7 @@ class BookingAgentTools:
                 {
                     "active_provider_id": primary.get("provider_id"),
                     "active_provider_name": primary.get("name"),
-                    "active_service": primary.get("service"),
+                    "active_service": primary.get("service") or resolved_service,
                     "active_provider_locked": True,
                 },
             )
@@ -185,7 +290,7 @@ class BookingAgentTools:
                 {
                     "active_provider_id": None,
                     "active_provider_name": None,
-                    "active_service": specialty,
+                    "active_service": resolved_service,
                     "active_provider_locked": False,
                 },
             )
@@ -317,7 +422,10 @@ class BookingAgentTools:
                 "provider_name": provider_name,
                 "date": selected_slot.get("date"),
                 "time": selected_slot.get("time"),
-                "formatted": f"{selected_slot.get('date')} at {selected_slot.get('time')}",
+                "formatted": (
+                    f"{_format_date_for_user(selected_slot.get('date'))} "
+                    f"at {selected_slot.get('time')}"
+                ),
                 "booking_status": "confirmed",
             }
         )
@@ -338,11 +446,13 @@ def create_booking_agent(room_id: str, llm: ChatOpenAI) -> AgentExecutor:
 Workflow:
 1. {Provider_term} named by user → call find_providers_by_name. Otherwise → call search_knowledge_base then find_providers_by_service.
 2. Date is required before get_provider_availability. If missing, ask — include {provider_term} name/{service_term} if already known.
+    If user gives a flexible date preference (for example: "anytime soon", "earliest available", "soonest", "first available"), treat it as valid date input and call get_provider_availability immediately.
 3. Once {provider_term} and date are confirmed, MUST call get_provider_availability. Never invent or infer slot times.
 4. Display slots as a numbered list, one slot per line.
 
 provider_id rules:
 - Only use provider_id from find_providers_by_name or find_providers_by_service results — never from search_knowledge_base, never guessed.
+- Only mention a {provider_term} name to the user if that exact name appears in find_providers_by_name/find_providers_by_service tool output in the current turn/session context.
 - Reuse active provider context unless a new search changes it.
 
 Slot selection:
@@ -361,6 +471,7 @@ Availability results:
 User-facing language:
 - NEVER use the technical term "provider" in responses to the user. Always say "{provider_term}" instead.
 - NEVER use the technical term "service_category" or "service_tags" in responses. Say "{service_term}" instead.
+- When mentioning a date to the user, use this format exactly: DD Mon YYYY (example: 10 Apr 2026).
 - Keep responses concise and friendly.
 
 [Current Session State] block (if present):
@@ -388,7 +499,8 @@ User-facing language:
             name="search_knowledge_base",
             description=(
                 "Semantic retrieval using OpenAI embeddings and pgvector search. "
-                "Returns top context docs with service_category, provider_id, and provider_name."
+                "Returns top service-level context docs with service_category and service_tags; "
+                "does not return authoritative provider identities."
             ),
             func=search_knowledge_base,
             args_schema=KnowledgeSearchInput,
@@ -431,24 +543,15 @@ def run_agentic_booking_flow(room_id: str, user_input: str, chat_history: list[d
     llm = ChatOpenAI(model=Config.LLM_MODEL, temperature=0)
     provider_term = Config.PROVIDER_DISPLAY_TERM
 
-    # Shortcircuit: social acknowledgement after a confirmed booking — avoids a full agent invocation.
-    if context.get("booking_state") == "confirmed":
-        user_intent = _classify_user_intent(user_input, booking_confirmed=True, llm=llm)
-        if user_intent == "confirm_booking":
-            last_booking = (context.get("confirmed_bookings") or [{}])[-1]
-            provider_name = last_booking.get("provider_name") or f"the selected {provider_term}"
-            date = last_booking.get("date")
-            time = last_booking.get("time")
-            ChatRepository.update_room_context(room_id, {"booking_state": None})
-            if date and time:
-                return (
-                    f"Your appointment with {provider_name} on {date} at {time} is confirmed. "
-                    "If you need another appointment or have any changes, just let me know."
-                )
-            return "Your appointment is confirmed. If you need another appointment or have any changes, just let me know."
+    # Handle one-turn social acknowledgement after a confirmed booking without invoking the full agent.
+    shortcircuit_reply = _try_handle_booking_shortcircuit(room_id, context, user_input, llm, provider_term)
+    if shortcircuit_reply:
+        return shortcircuit_reply
 
-        # Any other intent (change request, new booking, follow-up question): clear the flag and let the agent handle it.
-        ChatRepository.update_room_context(room_id, {"booking_state": None})
+    # Resolve pending date collection directly from the current user message.
+    direct_reply = _try_handle_awaiting_date(room_id, context, user_input, provider_term)
+    if direct_reply:
+        return direct_reply
 
     session_context = _build_session_context_block(room_id)
     executor = create_booking_agent(room_id=room_id, llm=llm)

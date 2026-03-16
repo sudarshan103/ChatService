@@ -1,5 +1,6 @@
 from app.models.extensions import db
 from config import Config
+from datetime import datetime, timezone
 
 
 class ProviderRepository:
@@ -71,6 +72,23 @@ class ProviderRepository:
         return rows
 
     @staticmethod
+    def list_distinct_services(limit: int = 100) -> list[str]:
+        cursor = db.cursor()
+        cursor.execute(
+            """
+            SELECT DISTINCT TRIM(service) AS service
+            FROM service_providers
+            WHERE service IS NOT NULL AND TRIM(service) <> ''
+            ORDER BY service ASC
+            LIMIT %s
+            """,
+            (limit,),
+        )
+        rows = cursor.fetchall() or []
+        cursor.close()
+        return [row.get("service") for row in rows if row.get("service")]
+
+    @staticmethod
     def find_providers_by_name(raw_query: str, normalized_query: str, limit: int = 5) -> list[dict]:
         cursor = db.cursor()
         query = """
@@ -113,15 +131,17 @@ class ProviderRepository:
 
     @staticmethod
     def get_all_provider_dates(provider_id: int) -> list[dict]:
+        utc_today = datetime.now(timezone.utc).date()
         cursor = db.cursor()
         cursor.execute(
             """
             SELECT DISTINCT DATE(available_date) AS available_date
             FROM service_slots
             WHERE provider_id = %s
+              AND DATE(available_date) >= %s
             ORDER BY DATE(available_date)
             """,
-            (provider_id,),
+            (provider_id, utc_today),
         )
         rows = cursor.fetchall() or []
         cursor.close()

@@ -27,13 +27,14 @@ def search_knowledge_base(query: str) -> str:
 
     rows = ProviderRepository.search_vector_matches(vector_literal=vector_literal, limit=5)
 
+    # Return only service-level retrieval context to avoid leaking stale provider
+    # identities from the corpus. Provider names/IDs must come from provider
+    # discovery tools backed by service_providers.
     matches = [
         {
             "record_type": row.get("record_type"),
             "content": row.get("content"),
             "service_category": row.get("service_category"),
-            "provider_id": row.get("provider_id"),
-            "provider_name": row.get("provider_name"),
             "service_tags": row.get("service_tags") or [],
         }
         for row in rows
@@ -49,8 +50,44 @@ def search_knowledge_base(query: str) -> str:
 
 
 def search_providers_by_service(service: str, limit: int = 5) -> str:
-    """Return providers that match a service type from service_providers."""
-    rows = ProviderRepository.find_providers_by_service_like(service=service, limit=limit)
+    """Return providers that match a service type from service_providers.
+
+    If no direct match exists, use LLM selection across currently available
+    service names and retry with the closest available service.
+    """
+    requested_service = (service or "").strip()
+    rows = ProviderRepository.find_providers_by_service_like(service=requested_service, limit=limit)
+
+    resolved_service = requested_service
+    fallback_used = False
+    fallback_reason = None
+
+    if not rows and requested_service:
+        available_services = ProviderRepository.list_distinct_services(limit=100)
+        if available_services:
+            services_block = "\n".join(f"- {item}" for item in available_services)
+            prompt = f"""
+You are a service mapper for appointment booking.
+Map the user-requested service/symptom to the closest item from the allowed services list.
+
+Rules:
+- Return ONLY one exact service name from the list, or NONE.
+- Do not invent a new service.
+- Prefer the medically closest category when symptom text is provided.
+
+Requested text: {requested_service}
+
+Allowed services:
+{services_block}
+""".strip()
+
+            mapped_service = llm_extract_single_line(prompt)
+            if mapped_service and mapped_service in available_services and mapped_service != requested_service:
+                resolved_service = mapped_service
+                rows = ProviderRepository.find_providers_by_service_like(service=resolved_service, limit=limit)
+                fallback_used = bool(rows)
+                if fallback_used:
+                    fallback_reason = "mapped_to_available_service"
 
     providers = [
         {"provider_id": row.get("id"), "name": row.get("name"), "service": row.get("service")}
@@ -59,9 +96,12 @@ def search_providers_by_service(service: str, limit: int = 5) -> str:
 
     return json.dumps(
         {
-            "service": service,
+            "service": requested_service,
+            "resolved_service": resolved_service,
             "providers": providers,
             "count": len(providers),
+            "fallback_used": fallback_used,
+            "fallback_reason": fallback_reason,
         }
     )
 
@@ -130,7 +170,7 @@ def _get_all_provider_dates(provider_id: int) -> list[str]:
 
 
 def _normalize_requested_date(value: str | None) -> str | None:
-    """Normalize user date text to YYYY-MM-DD using the configured LLM."""
+    """Normalize date intent to YYYY-MM-DD, EARLIEST, or None using the configured LLM."""
     raw = (value or "").strip()
     if not raw:
         return None
@@ -140,13 +180,14 @@ def _normalize_requested_date(value: str | None) -> str | None:
 You are a date normalizer for appointment booking.
 Today's date is {today_iso} (UTC).
 
-Extract the intended appointment date from the user's message and convert it to exactly one ISO date in YYYY-MM-DD format.
+Extract the intended appointment date from the user's message.
 Rules:
-- Output ONLY one value: either YYYY-MM-DD or NONE.
+- Output ONLY one value: YYYY-MM-DD, EARLIEST, or NONE.
 - Resolve relative terms using today's date.
 - The input may contain extra words (for example confirmations like "yes" or "please"); ignore non-date words.
 - Handle minor spelling mistakes in date words when intent is clear.
-- If the input is ambiguous, invalid, or does not specify a date, output NONE.
+- If the user expresses flexible timing without a specific date (for example anytime soon, earliest available, first available, soonest), output EARLIEST.
+- If the input is ambiguous, invalid, or not date-related, output NONE.
 
 User date text: {raw}
 """.strip()
@@ -154,6 +195,10 @@ User date text: {raw}
     candidate = llm_extract_single_line(prompt)
     if not candidate:
         return None
+
+    candidate = candidate.strip().upper()
+    if candidate == "EARLIEST":
+        return "EARLIEST"
 
     try:
         return datetime.strptime(candidate, "%Y-%m-%d").strftime("%Y-%m-%d")
@@ -176,9 +221,26 @@ def get_available_slots_agentic(provider_id: int, date: str | None = None) -> st
                 "all_available_dates": None,
                 "next_available_date": None,
                 "error": "invalid_date",
-                "message": "Could not understand the date. Please share your preferred appointment date in natural language.",
+                "message": "Could not understand the date. Please share your preferred appointment date.",
             }
         )
+
+    # Flexible date intent (e.g. "earliest available") maps to the first available provider date.
+    if normalized_date == "EARLIEST":
+        all_dates = _get_all_provider_dates(provider_id)
+        normalized_date = all_dates[0] if all_dates else None
+
+        if not normalized_date:
+            return json.dumps(
+                {
+                    "provider_id": provider_id,
+                    "date_filter": None,
+                    "slots": [],
+                    "count": 0,
+                    "all_available_dates": [],
+                    "next_available_date": None,
+                }
+            )
 
     rows = ProviderRepository.get_slots(provider_id=provider_id, normalized_date=normalized_date, limit=5)
 
