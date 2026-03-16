@@ -6,8 +6,8 @@ from bson import json_util
 from flask import Blueprint, jsonify, request
 
 from app.constants import chat_message_queue, chat_delivery_update_queue
-from app.models.chat_repo import ChatRepo
 from app.models.extensions import ApiJSONEncoder
+from app.repositories.chat_repository import ChatRepository
 from app.resources.broker.message_sender import enqueue_message
 from app.resources.core.auth import verify_auth_token
 
@@ -19,7 +19,7 @@ chat_api = Blueprint('chat_api', __name__)
 def read_messages(**kwargs):
     if not request.args.get('room_id'):
         return jsonify({'message': 'Missing required fields'}), 400
-    messages = ChatRepo.get_recent_messages(request.args.get('room_id'))
+    messages = ChatRepository.get_recent_messages(request.args.get('room_id'))
     return json_util.dumps(messages, cls=ApiJSONEncoder)
 
 @chat_api.route('/room/unread-messages', methods=['GET'])
@@ -30,7 +30,7 @@ def get_unread_messages(**kwargs):
     room_id = request.args.get('room_id')
     reader_uuid = request.args.get('reader_uuid')
     last_read_message_id = request.args.get('last_read_message_id') or ""
-    messages = ChatRepo.get_unread_messages_for_reader(room_id, reader_uuid, last_read_message_id)
+    messages = ChatRepository.get_unread_messages_for_reader(room_id, reader_uuid, last_read_message_id)
     return json_util.dumps(messages, cls=ApiJSONEncoder)
 
 @chat_api.route('/room/by-participants', methods=['GET'])
@@ -40,7 +40,7 @@ def get_room(**kwargs):
     user_self = kwargs.get('user_data')
     room_mates.append(dict(name=user_self['name'], uuid=user_self['uuid']))
     room_mates.append(dict(name=request.args.get('name'), uuid=request.args.get('uuid')))
-    return jsonify(ChatRepo.create_room(room_mates))
+    return jsonify(ChatRepository.create_room(room_mates))
 
 @chat_api.route('/room/active-by-user', methods=['GET'])
 @verify_auth_token

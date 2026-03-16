@@ -13,6 +13,18 @@ class Config:
     CHAT_CONTEXT_LIMIT = int(os.environ.get('CHAT_CONTEXT_LIMIT', 30))
     LLM_MODEL = os.environ.get('LLM_MODEL', 'gpt-3.5-turbo')
     ROOM_SESSION_TTL = int(os.environ.get('CHAT_CONTEXT_LIMIT', 600))
-    ENABLE_AGENTIC_RAG = os.environ.get('ENABLE_AGENTIC_RAG', 'true').lower() == 'true'
     RAG_EMBEDDING_MODEL = os.environ.get('RAG_EMBEDDING_MODEL', 'text-embedding-3-small')
-    PGVECTOR_TABLE = os.environ.get('PGVECTOR_TABLE', 'medical_corpus_vectors')
+    PGVECTOR_TABLE = os.environ.get('PGVECTOR_TABLE', 'knowledge_corpus_vectors')
+
+    # --- Booking system display/persona configuration ---
+    # Human-readable term for a single service provider shown in user-facing responses.
+    # Example: 'doctor', 'lawyer', 'mechanic', 'trainer'
+    PROVIDER_DISPLAY_TERM = os.environ.get('PROVIDER_DISPLAY_TERM', 'doctor')
+
+    # Human-readable term for the type of service/expertise.
+    # Example: 'specialty', 'practice area', 'service type'
+    SERVICE_DISPLAY_TERM = os.environ.get('SERVICE_DISPLAY_TERM', 'specialty')
+
+    # Short persona description used in the system prompt intro.
+    # Example: 'medical booking assistant', 'legal appointment scheduler', 'auto-service booking assistant'
+    BOOKING_ASSISTANT_PERSONA = os.environ.get('BOOKING_ASSISTANT_PERSONA', 'medical booking assistant')

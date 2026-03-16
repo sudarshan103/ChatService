@@ -18,6 +18,7 @@ export POSTGRES_PORT=5432
 export POSTGRES_DB=appointments
 export POSTGRES_USERNAME=<>
 export POSTGRES_PASSWORD=<>
+export CHAT_CONTEXT_LIMIT=30
 ```
 
 Replace placeholders (`<>`) with the appropriate values.
@@ -43,6 +44,9 @@ message
 ## Configure PostgreSQL
 Ensure PostgreSQL database `appointments` exists and includes the required tables:
 `service_providers` and `service_slots`.
+
+## Seed Script
+- `python -m app.resources.bookslot.seed_agentic_rag_corpus --clear-seed-rows`
 
 ## Run the app
 Run the user service in a separate terminal & run chat service with following command

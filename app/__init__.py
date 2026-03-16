@@ -5,7 +5,7 @@ from app.endpoints import endpoints
 from app.resources.chat.chat_blueprint import chat_api
 from config import Config
 from app.models.extensions import mongodb
-from app.models.mongo_utils import MongoCollections
+from app.repositories.chat_repository import MongoCollections
 
 def create_app():
     app = Flask(__name__)

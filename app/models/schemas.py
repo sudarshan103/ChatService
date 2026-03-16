@@ -1,29 +1,29 @@
 from pydantic import BaseModel, Field
 
 
-class MedicalKnowledgeInput(BaseModel):
-    """Tool input for semantic medical knowledge search."""
+class KnowledgeSearchInput(BaseModel):
+    """Tool input for semantic knowledge base search."""
 
-    query: str = Field(description="User symptom or condition text")
+    query: str = Field(description="User query text (symptom, condition, service need, etc.)")
 
 
-class FindDoctorsBySpecialtyInput(BaseModel):
-    """Tool input for doctor discovery."""
+class FindProvidersByServiceInput(BaseModel):
+    """Tool input for provider discovery by service type."""
 
-    specialty: str = Field(description="Medical specialty, e.g. Orthopedics")
-    limit: int = Field(default=5, ge=1, le=20, description="Maximum doctors to return")
+    specialty: str = Field(description="Service type or area of expertise, e.g. Orthopedics")
+    limit: int = Field(default=5, ge=1, le=20, description="Maximum providers to return")
 
 
 class ProviderInput(BaseModel):
-    """Tool input for provider search in appointment flow."""
+    """Tool input for provider search by name in the appointment flow."""
 
-    provider_name: str = Field(description="Doctor's name or specialty")
+    provider_name: str = Field(description="Provider's name or service area")
 
 
 class SlotsInput(BaseModel):
-    """Tool input for fetching slots in appointment flow."""
+    """Tool input for fetching availability slots in the appointment flow."""
 
-    provider_id: int = Field(description="Doctor's ID from provider search")
+    provider_id: int = Field(description="Provider's ID from a prior provider search")
     date: str | None = Field(default=None, description="Preferred appointment date text (optional, natural language accepted)")
 
 
