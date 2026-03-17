@@ -12,32 +12,10 @@ class ProviderRepository:
         sql = f"""
             SELECT record_type, content, service_category, provider_id, provider_name, service_tags
             FROM {Config.PGVECTOR_TABLE}
-            ORDER BY embedding <-> %s::vector
-            LIMIT %s
-        """
-        cursor.execute(sql, (vector_literal, limit))
-        rows = cursor.fetchall() or []
-        cursor.close()
-        return rows
-
-    @staticmethod
-    def similarity_search(vector_literal: str, top_k: int = 3) -> list[dict]:
-        cursor = db.cursor()
-        sql = f"""
-            SELECT
-                id,
-                record_type,
-                service_category,
-                provider_id,
-                provider_name,
-                service_tags,
-                content,
-                1 - (embedding <=> %s::vector) AS similarity
-            FROM {Config.PGVECTOR_TABLE}
             ORDER BY embedding <=> %s::vector
             LIMIT %s
         """
-        cursor.execute(sql, (vector_literal, vector_literal, top_k))
+        cursor.execute(sql, (vector_literal, limit))
         rows = cursor.fetchall() or []
         cursor.close()
         return rows
@@ -53,20 +31,6 @@ class ProviderRepository:
             LIMIT %s
         """
         cursor.execute(query, (f"%{service}%", limit))
-        rows = cursor.fetchall() or []
-        cursor.close()
-        return rows
-
-    @staticmethod
-    def list_all_providers() -> list[dict]:
-        cursor = db.cursor()
-        cursor.execute(
-            """
-            SELECT id, name, service
-            FROM service_providers
-            ORDER BY name ASC
-            """
-        )
         rows = cursor.fetchall() or []
         cursor.close()
         return rows
