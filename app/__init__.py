@@ -1,5 +1,5 @@
 from flask_cors import CORS
-from flask import Flask, g
+from flask import Flask, current_app, g
 
 from app.endpoints import endpoints
 from app.resources.chat.chat_blueprint import chat_api
@@ -37,5 +37,7 @@ def _ensure_ttl_index():
             expireAfterSeconds=Config.ROOM_SESSION_TTL,
             name='room_session_updated_at_ttl'
         )
-    except Exception as e:
-        pass
+    except Exception:
+        current_app.logger.exception(
+            "Failed to initialize MongoDB TTL index for room_session. Check DB_PATH and MongoDB connectivity."
+        )

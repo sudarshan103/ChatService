@@ -12,11 +12,12 @@ class ProviderRepository:
         sql = f"""
             SELECT record_type, content, service_category, provider_id, provider_name, service_tags
             FROM {Config.PGVECTOR_TABLE}
-            ORDER BY embedding <=> %s::vector
+            ORDER BY embedding <-> %s::vector
             LIMIT %s
         """
         cursor.execute(sql, (vector_literal, limit))
         rows = cursor.fetchall() or []
+
         cursor.close()
         return rows
 
