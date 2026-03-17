@@ -15,7 +15,14 @@ from app.resources.broker.message_receiver import init_broker_message_listener
 
 app = create_app()
 jwt = JWTManager(app)
-socketio.init_app(app, cors_allowed_origins="*", async_mode='eventlet', engineio_logger=True, max_http_buffer_size=1e8)
+socketio.init_app(
+    app,
+    cors_allowed_origins="*",
+    async_mode='eventlet',
+    # engineio_logger=True,
+    engineio_logger=False,
+    max_http_buffer_size=1e8,
+)
 
 with app.app_context():
     init_broker_message_listener(socketio, app)
@@ -23,7 +30,9 @@ with app.app_context():
 
 if __name__ == '__main__':
     socketio.run(app,
-                 debug=True,
+                 # debug=True,
+                 debug=False,
                  host="0.0.0.0",
                  port=5001,
-                 allow_unsafe_werkzeug=True)
+                 allow_unsafe_werkzeug=True,
+                 log_output=False)

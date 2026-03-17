@@ -8,13 +8,13 @@ import time
 import logging
 
 from app.constants import chat_message_queue, chat_delivery_update_queue, REDIS_KEY
-from app.models.chat_repo import ChatRepo
+from app.repositories.chat_repository import ChatRepository
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# logging.basicConfig(
+#     level=logging.INFO,
+#     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+# )
 logger = logging.getLogger(__name__)
 
 
@@ -146,11 +146,15 @@ def init_broker_message_listener(socketio, app):
     consumer_configs = [
         {
             'queue_name': chat_message_queue,
-            'handler': lambda data: ChatRepo.process_new_message(data)
+            'handler': lambda data: ChatRepository.process_new_message(data)
         },
         {
             'queue_name': chat_delivery_update_queue,
-            'handler': lambda data: ChatRepo.update_delivery_status(data)
+            'handler': lambda data: ChatRepository.update_delivery_status(
+                reader_uuid=data.get("reader_uuid"),
+                message_ids=data.get("message_ids") or [],
+                delivery_status=data.get("delivery_status"),
+            )
         }
     ]
 
